@@ -155,7 +155,7 @@ $.extend(UI, {
         // script per fare apparire e scomparire la riga con l'upload della tmx
 
 
-        $('body').on('click', 'tr.mine a.canceladdtmx, #inactivetm tr.new .action .addtmxfile', function() {
+        $('body').on('click', 'tr.mine a.canceladdtmx, tr.ownergroup a.canceladdtmx, #inactivetm tr.new .action .addtmxfile', function() {
             $(this).parents('tr').find('.action .addtmx').removeClass('disabled');
             $(this).parents('td.uploadfile').remove();
 
@@ -238,7 +238,7 @@ $.extend(UI, {
 //            $(".clicked td.action").append('progressbar');
 
             // script per appendere le tmx fra quelle attive e inattive, preso da qui: https://stackoverflow.com/questions/24355817/move-table-rows-that-are-selected-to-another-table-javscript
-        }).on('click', 'tr.mine .uploadfile .addtmxfile:not(.disabled)', function() {
+        }).on('click', 'tr.mine .uploadfile .addtmxfile:not(.disabled), tr.ownergroup .uploadfile .addtmxfile:not(.disabled)', function() {
             $(this).addClass('disabled');
             $(this).parents('.uploadfile').find('.error').text('').hide();
 
@@ -255,7 +255,8 @@ $.extend(UI, {
         }).on('blur', '#activetm td.description .edit-desc', function() {
 //            console.log('blur');
             $(this).removeAttr('contenteditable');
-            if(APP.isCattool) UI.saveTMdata(false);
+            UI.saveTMdata(false);
+//            if(APP.isCattool) UI.saveTMdata(false);
 
 //            $('.popup-tm tr.mine td.description .edit-desc').removeAttr('contenteditable');
 /*
@@ -268,11 +269,30 @@ $.extend(UI, {
 */
         }).on('blur', '#inactivetm td.description .edit-desc', function() {
             $(this).removeAttr('contenteditable');
-            if(APP.isCattool) UI.saveTMdescription($(this));
+//            if(APP.isCattool) UI.saveTMdescription($(this));
+            UI.saveTMdescription($(this));
         }).on('keydown', '.mgmt-tm td.description .edit-desc', 'return', function(e) {
+//            console.log('return');
+            if(e.which == 13) {
+                e.preventDefault();
+                $(this).trigger('blur');
+            }
+        }).on('click', '.mgmt-mt td.engine-name .edit-desc', function() {
+            $('.mgmt-mt .edit-desc[contenteditable=true]').blur();
+//            $('#activetm tr.mine td.description .edit-desc:not(.current)').removeAttr('contenteditable');
+//            $(this).removeClass('current');
+            $(this).attr('contenteditable', true);
+        }).on('blur', '.mgmt-mt td.engine-name .edit-desc', function() {
+            $(this).removeAttr('contenteditable');
+//            UI.saveTMdata(false);
+//        }).on('blur', '#inactivetm td.description .edit-desc', function() {
+//            $(this).removeAttr('contenteditable');
+//            if(APP.isCattool) UI.saveTMdescription($(this));
+//            UI.saveTMdescription($(this));
+        }).on('keydown', '.mgmt-mt td.engine-name .edit-desc', 'return', function(e) {
             e.preventDefault();
             $(this).trigger('blur');
-         }).on('click', '#activetm tr.uploadpanel .uploadfile .addtmxfile:not(.disabled)', function() {
+        }).on('click', '#activetm tr.uploadpanel .uploadfile .addtmxfile:not(.disabled)', function() {
             $(this).addClass('disabled');
             UI.execAddTM(this);
 //        }).on('click', '.popup-tm .savebtn', function() {
@@ -311,7 +331,7 @@ $.extend(UI, {
             UI.useTM(this);
         }).on('change', '#new-tm-read, #new-tm-write', function() {
             UI.checkTMgrants();
-        }).on('change', 'tr.mine td.uploadfile input[type="file"]', function() {
+        }).on('change', 'tr.mine td.uploadfile input[type="file"], tr.ownergroup td.uploadfile input[type="file"]', function() {
             if(this.files[0].size > config.maxTMXFileSize) {
                 numMb = config.maxTMXFileSize/(1024*1024);
                 APP.alert('File too big.<br/>The maximuxm allowed size is ' + numMb + 'Mb.');
@@ -469,6 +489,7 @@ $.extend(UI, {
 
     },
     openLanguageResourcesPanel: function(tab, elToClick) {
+        console.log('openLanguageResourcesPanel');
         tab = tab || 'tm';
         elToClick = elToClick || null;
         $('body').addClass('side-popup');
@@ -723,7 +744,16 @@ $.extend(UI, {
         } else {
             $(table).find('tr.uploadpanel .uploadfile').addClass('uploading');
         }
-        var trClass = (existing)? 'mine' : 'uploadpanel';
+        if(existing) {
+            if($(el).parents('tr').hasClass('mine')) {
+                trClass = 'mine';
+            } else {
+                trClass = 'ownergroup';
+            }
+        } else {
+            trClass = 'uploadpanel';
+        }
+//        var trClass = (existing)? 'mine' : 'uploadpanel';
         form = $(table).find('tr.' + trClass + ' .add-TM-Form')[0];
         path = $(el).parents('.uploadfile').find('input[type="file"]').val();
         file = path.split('\\')[path.split('\\').length-1];
@@ -811,12 +841,12 @@ $.extend(UI, {
         iframe.setAttribute("height", "0");
         iframe.setAttribute("border", "0");
         iframe.setAttribute("style", "width: 0; height: 0; border: none;");
-
         // Add to document...
         document.body.appendChild(iframe);
 //        form.parentNode.appendChild(iframe);
         window.frames['upload_iframe'].name = "upload_iframe";
         iframeId = document.getElementById(ifId);
+        UI.TMuploadIframeId = iframeId;
 
         // Add event...
         var eventHandler = function () {
@@ -842,7 +872,13 @@ $.extend(UI, {
         if (iframeId.addEventListener) iframeId.addEventListener("load", eventHandler, true);
         if (iframeId.attachEvent) iframeId.attachEvent("onload", eventHandler);
         existing = ($(form).hasClass('existing'))? true : false;
-        TMKey = (existing)? $(form).parents('.mine').find('.privatekey').first().text() : $('#new-tm-key').val();
+        if(existing) {
+            TR = $(form).parents('tr');
+            TMKey = TR.find('.privatekey').first().text();
+        } else {
+            TMKey = $('#new-tm-key').val();
+        }
+//        TMKey = (existing)? $(form).parents('.mine').find('.privatekey').first().text() : $('#new-tm-key').val();
 
         // Set properties of form...
         form.setAttribute("target", "upload_iframe");
@@ -996,7 +1032,7 @@ $.extend(UI, {
                                 $('#activetm tr.uploadpanel .uploadfile').removeClass('uploading');
                             }
 
-
+                            UI.TMuploadIframeId.parentNode.removeChild(UI.TMuploadIframeId);
 //                            APP.showMessage({
 //                                msg: 'Your TM has been correctly uploaded. The private TM key is ' + TMKey + '. Store it somewhere safe to use it again.'
 //                            });
@@ -1048,8 +1084,8 @@ $.extend(UI, {
                 tm: $(this).attr('data-tm'),
                 glos: $(this).attr('data-glos'),
                 owner: $(this).attr('data-owner'),
-                key: $(this).find('.privatekey').text(),
-                name: $(this).find('.description').text(),
+                key: $(this).find('.privatekey').text().trim(), // remove spaces and unwanted chars from string
+                name: $(this).find('.description').text().trim(),
                 r: r,
                 w: w
             }
@@ -1091,7 +1127,8 @@ $.extend(UI, {
             },
             error: function() {
                 console.log('Error saving TM data!!');
-                APP.showMessage({msg: 'There was an error saving your data. Please retry!'});
+//                APP.showMessage({msg: 'There was an error saving your data. Please retry!'});
+                $('.tm-error-message').text('There was an error saving your data. Please retry!').show();
                 $('.popup-tm').removeClass('saving');
 
 //                $('.mgmt-panel-tm .warning-message').text('').hide();
@@ -1306,7 +1343,9 @@ $.extend(UI, {
     },
     deleteTM: function (button) {
         tr = $(button).parents('tr').first();
-        $(tr).remove();
+        $(tr).fadeOut("normal", function() {
+        $(this).remove();
+    });
         APP.doRequest({
             data: {
                 action: 'userKeys',

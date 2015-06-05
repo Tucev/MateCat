@@ -24,7 +24,6 @@ module.exports = function(grunt) {
                     basePath + 'cat_source/ui.review.js',
                     basePath + 'tm.js',
                     basePath + 'cat_source/ui.offline.js',
-                    basePath + 'cat_source/ui.noconnection.js',
                     basePath + 'cat_source/ui.split.js'
 				],
 				dest: basePath + 'cat.js'
@@ -40,7 +39,7 @@ module.exports = function(grunt) {
 					basePath + 'lib/rangy-core.js',
 					basePath + 'lib/rangy-selectionsaverestore.js',
 					basePath + 'lib/snapengage.js',
-					basePath + 'lib/waypoints.js',
+					basePath + 'lib/waypoints.js'
 				],
 				dest: basePath + 'libs.js'
 			},
@@ -69,7 +68,7 @@ module.exports = function(grunt) {
 				options: {
 					interrupt: true
 				}
-			},
+			}
 		},
 		jshint: {
 			options: {

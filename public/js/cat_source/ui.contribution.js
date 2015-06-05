@@ -16,6 +16,7 @@ $.extend(UI, {
 	},
 	copySuggestionInEditarea: function(segment, translation, editarea, match, decode, auto, which) {
 // console.log('translation 1: ', translation);
+//        console.log('copySuggestionInEditarea - editarea: ', editarea);
 		if (typeof (decode) == "undefined") {
 			decode = false;
 		}
@@ -60,19 +61,22 @@ $.extend(UI, {
 		var n = (next === 0) ? $(segment) : (next == 1) ? $('#segment-' + this.nextSegmentId) : $('#segment-' + this.nextUntranslatedSegmentId);
 		if ($(n).hasClass('loaded')) {
 //			console.log('hasclass loaded');
-			this.spellCheck();
-			if (next) {
-				this.nextIsLoaded = true;
-			} else {
-				this.currentIsLoaded = true;
-			}
-			if (this.currentIsLoaded)
-				this.blockButtons = false;
-			if (this.currentSegmentId == this.nextUntranslatedSegmentId)
-				this.blockButtons = false;
-			if (!next)
-				this.currentSegmentQA();
-			return false;
+			console.log('qualcosa nella tab matches? ', segment.find('.footer .matches .overflow').text().length);
+            if(segment.find('.footer .matches .overflow').text().length) {
+                this.spellCheck();
+                if (next) {
+                    this.nextIsLoaded = true;
+                } else {
+                    this.currentIsLoaded = true;
+                }
+                if (this.currentIsLoaded)
+                    this.blockButtons = false;
+                if (this.currentSegmentId == this.nextUntranslatedSegmentId)
+                    this.blockButtons = false;
+                if (!next)
+                    this.currentSegmentQA();
+                return false;
+            }
 		}
 
 		if ((!n.length) && (next)) {
@@ -114,15 +118,18 @@ $.extend(UI, {
 			},
 			context: $('#' + id),
 			error: function() {
+//                console.log('getContribution error');
 				UI.failedConnection(0, 'getContribution');
 			},
 			success: function(d) {
+//                console.log('getContribution success');
 //				console.log('getContribution from ' + this + ': ', d.data.matches);
 				if (d.errors.length)
 					UI.processErrors(d.errors, 'getContribution');
 				UI.getContribution_success(d, this);
 			},
 			complete: function() {
+//                console.log('getContribution complete');
 				UI.getContribution_complete(n);
 			}
 		});
@@ -132,7 +139,18 @@ $.extend(UI, {
 	},
 	getContribution_success: function(d, segment) {
 //		console.log(d.data.matches);
-		localStorage.setItem('contribution-' + config.job_id + '-' + $(segment).attr('id').split('-')[1], JSON.stringify(d));
+        this.addInStorage('contribution-' + config.job_id + '-' + UI.getSegmentId(segment), JSON.stringify(d), 'contribution');
+/*
+        try {
+            localStorage.setItem('contribution-' + config.job_id + '-' + UI.getSegmentId(segment), JSON.stringify(d));
+        } catch (e) {
+            UI.clearStorage('contribution');
+            localStorage.setItem('contribution-' + config.job_id + '-' + UI.getSegmentId(segment), JSON.stringify(d));
+        }
+*/
+//        localStorage.setItem('contribution-' + config.job_id + '-' + UI.getSegmentId(segment), JSON.stringify(d));
+
+//		localStorage.setItem('contribution-' + config.job_id + '-' + $(segment).attr('id').split('-')[1], JSON.stringify(d));
 //		console.log(localStorage.getItem($(segment).attr('id').split('-')[1]));
 //		console.log(localStorage.getItem('4679214'));
 //		console.log(!localStorage.getItem('4679214'));
@@ -140,8 +158,9 @@ $.extend(UI, {
 		this.processContributions(d, segment);
 	},
 	processContributions: function(d, segment) {
+        if(!d) return true;
 		this.renderContributions(d, segment);
-		if ($(segment).attr('id').split('-')[1] == UI.currentSegmentId)
+		if (this.getSegmentId(segment) == UI.currentSegmentId)
 			this.currentSegmentQA();
 		this.lockTags(this.editarea);
 		this.spellCheck();
@@ -153,15 +172,16 @@ $.extend(UI, {
 			$('.submenu li.matches a span', segment).text('(' + d.data.matches.length + ')');
 		} else {
 			$(".sbm > .matches", segment).hide();
-		}		
-	},
+		}
+
+    },
 	renderContributions: function(d, segment) {
+        if(!d) return true;
 		var isActiveSegment = $(segment).hasClass('editor');
 		var editarea = $('.editarea', segment);
-//        console.log(d.data.matches.length);
 
 
-		if (d.data.matches.length) {
+		if(d.data.matches.length) {
 			var editareaLength = editarea.text().trim().length;
 			if (isActiveSegment) {
 				editarea.removeClass("indent");
@@ -247,7 +267,9 @@ $.extend(UI, {
 
 			UI.setDeleteSuggestion(segment);
 			UI.lockTags();
-//            UI.setContributionSourceDiff();
+            UI.setContributionSourceDiff();
+
+//            UI.setContributionSourceDiff_Old();
 			if (editareaLength === 0) {
 //				console.log('translation AA: ', translation);
 //				translation = UI.decodePlaceholdersToText(translation, true, segment_id, 'translation');
@@ -281,12 +303,46 @@ $.extend(UI, {
 		}
 	},
 	setContribution: function(segment_id, status, byStatus) {
+//        console.log('setContribution');
+        this.addToSetContributionTail('setContribution', segment_id, status, byStatus);
+        if(!this.offline) {
+            if( (!this.executingSetContribution) && (!this.executingSetContributionMT) ) this.execSetContributionTail();
+        }
+    },
+    addToSetContributionTail: function (operation, segment_id, status, byStatus) {
+//        console.log('addToSetContributionTail');
+        var item = {
+            operation: operation,
+            segment_id: segment_id,
+            status: status,
+            byStatus: byStatus
+        }
+        this.setContributionTail.push(item);
+    },
+    execSetContributionTail: function () {
+//        console.log('execSetContributionTail');
+
+        if ( UI.setContributionTail.length ) {
+            item = UI.setContributionTail[0];
+            UI.setContributionTail.shift();
+            if ( item.operation == 'setContribution' ) {
+                UI.execSetContribution( item.segment_id, item.status, item.byStatus );
+            } else {
+                UI.execSetContributionMT( item.segment_id, item.status, item.byStatus );
+            }
+        }
+
+    },
+
+    execSetContribution: function(segment_id, status, byStatus) {
+//        console.log('execSetContribution');
+        this.executingSetContribution = true;
         logData = {
             segment_id: segment_id,
             status: status,
             byStatus: byStatus
         };
-        this.log('setContribution1', reqData);
+        this.log('setContribution1', logData);
 		segment = $('#segment-' + segment_id);
 		if ((status == 'draft') || (status == 'rejected'))
 			return false;
@@ -311,9 +367,9 @@ $.extend(UI, {
             this.log('setContribution6', {});
 			return false;
 		}
-		this.updateContribution(source, target);
+		this.updateContribution(source, target, segment_id, status, byStatus);
 	},
-	updateContribution: function(source, target) {
+	updateContribution: function(source, target, segment_id, status, byStatus) {
 		reqArguments = arguments;
 		source = view2rawxliff(source);
 		target = view2rawxliff(target);
@@ -339,15 +395,30 @@ $.extend(UI, {
 			},
 			context: reqArguments,
 			error: function() {
+                UI.addToSetContributionTail('setContribution', $(this)[2], $(this)[3], $(this)[4]);
 				UI.failedConnection(this, 'updateContribution');
 			},
 			success: function(d) {
+                console.log('execSetContribution success');
+                UI.executingSetContribution = false;
+                UI.removeFromStorage('contribution-' + config.job_id + '-' + segment_id );
+//                localStorage.removeItem('contribution-' + config.job_id + '-' + segment_id );
+                UI.execSetContributionTail();
 				if (d.errors.length)
-					UI.processErrors(d.errors, 'setContribution');
+					UI.processErrors(d.error, 'setContribution');
 			}
 		});
 	},
-	setContributionMT: function(segment_id, status, byStatus) {
+    setContributionMT: function(segment_id, status, byStatus) {
+        console.log('setContribution');
+        this.addToSetContributionTail('setContributionMT', segment_id, status, byStatus);
+        if(!this.offline) {
+            if( (!this.executingSetContribution) && (!this.executingSetContributionMT) ) this.execSetContributionTail();
+        }
+    },
+    execSetContributionMT: function(segment_id, status, byStatus) {
+        console.log('execSetContribution');
+        this.executingSetContributionMT = true;
 		segment = $('#segment-' + segment_id);
 		reqArguments = arguments;
 		if ((status == 'draft') || (status == 'rejected'))
@@ -370,7 +441,11 @@ $.extend(UI, {
 		if (target === '') {
 			return false;
 		}
-		target = view2rawxliff(target);
+        this.updateContributionMT(source, target, segment_id, status, byStatus);
+    },
+    updateContributionMT: function (source, target, segment_id, status, byStatus) {
+        reqArguments = arguments;
+        target = view2rawxliff(target);
 //		var languages = $(segment).parents('article').find('.languages');
 //		var source_lang = $('.source-lang', languages).text();
 //		var target_lang = $('.target-lang', languages).text();
@@ -399,11 +474,15 @@ $.extend(UI, {
 			},
 			context: reqArguments,
 			error: function() {
+                UI.addToSetContributionTail('setContributionMT', $(this)[2], $(this)[3], $(this)[4]);
 				UI.failedConnection(this, 'setContributionMT');
 			},
 			success: function(d) {
+                console.log('execSetContributionMT success');
+                UI.executingSetContributionMT = false;
+                UI.execSetContributionTail();
 				if (d.errors.length)
-					UI.processErrors(d.errors, 'setContributionMT');
+					UI.processErrors(d.error, 'setContributionMT');
 			}
 		});
 	},
@@ -488,7 +567,38 @@ $.extend(UI, {
 	setChosenSuggestion: function(w) {
 		this.editarea.data('lastChosenSuggestion', w);
 	},
-    setContributionSourceDiff: function (segment) {
+    setContributionSourceDiff: function () {
+        sourceText = '';
+        $.each($.parseHTML($('.editor .source').html()), function (index) {
+            if(this.nodeName == '#text') {
+                sourceText += this.data;
+            } else {
+                sourceText += this.innerText;
+            }
+        });
+ //       console.log('sourceText: ', sourceText);
+        UI.currentSegment.find('.sub-editor.matches ul.suggestion-item').each(function () {
+            percent = parseInt($(this).find('.graysmall-details .percent').text().split('%')[0]);
+            if(percent > 74) {
+                ss = $(this).find('.suggestion_source');
+                suggestionSourceText = '';
+                $.each($.parseHTML($(ss).html()), function (index) {
+                    if(this.nodeName == '#text') {
+                        suggestionSourceText += this.data;
+                    } else {
+                        suggestionSourceText += this.innerText;
+                    }
+                });
+//            console.log('suggestionSourceText: ', suggestionSourceText);
+//            console.log('diff: ', UI.execDiff(sourceText, suggestionSourceText));
+                $(this).find('.suggestion_source').html(UI.dmp.diff_prettyHtml(UI.execDiff(sourceText, suggestionSourceText)));
+            }
+
+
+        });
+    },
+
+    setContributionSourceDiff_Old: function (segment) {
         sourceText = '';
         $.each($.parseHTML($('.editor .source').html()), function (index) {
             if(this.nodeName == '#text') {
@@ -510,7 +620,7 @@ $.extend(UI, {
                 }
             });
             console.log('suggestionSourceText: ', suggestionSourceText);
-
+            console.log('diff: ', UI.execDiff(sourceText, suggestionSourceText));
 
 //            console.log('a: ', $('.editor .source').html());
 //            console.log($.parseHTML($('.editor .source').html()));

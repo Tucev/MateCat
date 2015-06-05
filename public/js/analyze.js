@@ -46,7 +46,8 @@ UI = {
 		 */
 		$(".part3").click(function(e) {
 			e.preventDefault();
-			$(this).parents('tbody').find(".part3files").toggleClass('open');
+            $(this).parents('tbody').find(".part3files").toggleClass('open');
+            $(".loadingbar").removeClass('start');
 		});
 		/*        
 		 $(".split").click(function(e){
@@ -158,7 +159,10 @@ UI = {
 				okTxt: 'Continue', 
 				msg: "This will cause the merging of all chunks in only one job.<br>This operation cannot be canceled."
 			});
-		});
+		}).on('click', '.downloadAnalysisReport', function(e) {
+            e.preventDefault();
+            UI.downloadAnalysisReport();
+        });
 
 
 		$("#close").click(function(e) {
@@ -245,7 +249,7 @@ UI = {
 
 	checkStatus: function(status) {
 		if (config.status == status) {
-			$('.loadingbar').addClass('open');
+			$('.loadingbar').removeClass('start');
 //            this.progressBar(UI.progressPerc);
 			this.progressBar(config.totalAnalyzed / config.totalSegments);
 		}
@@ -391,7 +395,8 @@ UI = {
 	},
 	displayError: function(error) {
 		$('#shortloading').hide();
-		$('.loadingbar').addClass('open');
+//		$('.loadingbar').addClass('open');
+        $('.loadingbar').removeClass('start');
 		$('#longloading .meter').hide();
 		$('#longloading p').html(error);
 		$('#longloading').show();
@@ -431,41 +436,44 @@ UI = {
                 jpassword: jpassword
 			},
 			success: function(d) {
-				if (d.data) {
-					var s = d.data.summary;
-					//temp 
+                if ( d.data ) {
+                    var s = d.data.summary;
+                    //temp
 //					config.daemon_warning = false;
 //					s.IN_QUEUE_BEFORE = 10;
-					//end temp					
-					if ((s.STATUS == 'NEW') || (s.STATUS == '') || s.IN_QUEUE_BEFORE > 0) {
-						$('.loadingbar').addClass('open');
+                    //end temp
+                    if ( (s.STATUS == 'NEW') || (s.STATUS == '') || s.IN_QUEUE_BEFORE > 0 ) {
+//                        $( '.loadingbar' ).addClass( 'open' );
+                        $( '.loadingbar' ).removeClass( 'start' );
 
-						if( config.daemon_warning ){
-						if(-1==config.support_mail.indexOf('@')){
-							analyzerNotRunningErrorString='The analysis seems not to be running. Contact '+config.support_mail+'.';
-						}else{
-							analyzerNotRunningErrorString='The analysis seems not to be running. Contact <a href="mailto:'+config.support_mail+'">'+config.support_mail+'</a>.';
-						}
-						UI.displayError(analyzerNotRunningErrorString);
+                        if ( config.daemon_warning ) {
 
-						$('#standard-equivalent-words .word-number' ).removeClass('loading').text( $('#raw-words .word-number' ).text() );
-						$('#matecat-equivalent-words .word-number' ).removeClass('loading').text( $('#raw-words .word-number' ).text() );
-						return false;
-						} else if (s.IN_QUEUE_BEFORE > 0) {
-							//increasing number of segments ( fast analysis on another project )
-							if ( UI.previousQueueSize <= s.IN_QUEUE_BEFORE ) {
-								$('#shortloading' ).show().html('<p class="label">There are other projects in queue. Please wait...</p>');
-								$('#longloading' ).hide();
-							} else { //decreasing ( TM analysis on another project )
-								if ( !$('#shortloading .queue').length ) {
-									$('#shortloading').html('<p class="label">There are still <span class="number">' + s.IN_QUEUE_BEFORE_PRINT + '</span> segments in queue. Please wait...</p>');
-								} else {
-									$('#shortloading .queue .number').text(s.IN_QUEUE_BEFORE_PRINT);
-								}
-							}
-						}
-						UI.previousQueueSize = s.IN_QUEUE_BEFORE;
-					}
+                            if ( -1 == config.support_mail.indexOf( '@' ) ) {
+                                analyzerNotRunningErrorString = 'The analysis seems not to be running. Contact ' + config.support_mail + '.';
+                            } else {
+                                analyzerNotRunningErrorString = 'The analysis seems not to be running. Contact <a href="mailto:' + config.support_mail + '">' + config.support_mail + '</a>.';
+                            }
+                            UI.displayError( analyzerNotRunningErrorString );
+
+                            $( '#standard-equivalent-words .word-number' ).removeClass( 'loading' ).text( $( '#raw-words .word-number' ).text() );
+                            $( '#matecat-equivalent-words .word-number' ).removeClass( 'loading' ).text( $( '#raw-words .word-number' ).text() );
+                            return false;
+
+                        } else if ( s.IN_QUEUE_BEFORE > 0 ) {
+                            //increasing number of segments ( fast analysis on another project )
+                            if ( UI.previousQueueSize <= s.IN_QUEUE_BEFORE ) {
+                                $( '#shortloading' ).show().html( '<p class="label">There are other projects in queue. Please wait...</p>' );
+                                $( '#longloading' ).hide();
+                            } else { //decreasing ( TM analysis on another project )
+                                if ( !$( '#shortloading .queue' ).length ) {
+                                    $( '#shortloading' ).html( '<p class="label">There are still <span class="number">' + s.IN_QUEUE_BEFORE_PRINT + '</span> segments in queue. Please wait...</p>' );
+                                } else {
+                                    $( '#shortloading .queue .number' ).text( s.IN_QUEUE_BEFORE_PRINT );
+                                }
+                            }
+                        }
+                        UI.previousQueueSize = s.IN_QUEUE_BEFORE;
+                    }
 
 					//                    this is not used, for now we never get an empty status from controller
 					//                    else if(s.STATUS == 'EMPTY') {
@@ -476,19 +484,23 @@ UI = {
 					else if (s.STATUS == 'FAST_OK' && s.IN_QUEUE_BEFORE == 0) {
 						//                        UI.progressBar(UI.progressPerc)
 						if (UI.lastProgressSegments != s.SEGMENTS_ANALYZED) {
+
 							UI.lastProgressSegments = s.SEGMENTS_ANALYZED;
 							UI.noProgressTail = 0;
+
 						} else {
-							UI.noProgressTail++;
-							if (UI.noProgressTail > 9) {
-								if(-1==config.support_mail.indexOf('@')){
-									analyzerNotRunningErrorString='The analysis seems not to be running. Contact '+config.support_mail+'.';
-								}else{
-									analyzerNotRunningErrorString='The analysis seems not to be running. Contact <a href="mailto:'+config.support_mail+'">'+config.support_mail+'</a> or try refreshing the page.';
-								}
-								UI.displayError(analyzerNotRunningErrorString);
-								return false;
-							}
+
+                            UI.noProgressTail++;
+                            if ( UI.noProgressTail > 9 ) {
+                                if ( -1 == config.support_mail.indexOf( '@' ) ) {
+                                    analyzerNotRunningErrorString = 'The analysis seems not to be running. Contact ' + config.support_mail + '.';
+                                } else {
+                                    analyzerNotRunningErrorString = 'The analysis seems not to be running. Contact <a href="mailto:' + config.support_mail + '">' + config.support_mail + '</a> or try refreshing the page.';
+                                }
+                                UI.displayError( analyzerNotRunningErrorString );
+                                return false;
+                            }
+
 						}
 						UI.progressBar(s.SEGMENTS_ANALYZED / s.TOTAL_SEGMENTS);
 						$('#analyzedSegmentsReport').text(s.SEGMENTS_ANALYZED_PRINT);
@@ -600,11 +612,35 @@ UI = {
 									if ( s_tm75_txt != tot.TM_75_99[1] )
 										s_tm75.effect( "highlight", {}, 1000 );
 
+                                    var s_tm75_84 = $( '.stat_tm75_84', context );
+                                    s_tm75_84_txt = s_tm75_84.text();
+                                    s_tm75_84.text( tot.TM_75_84[1] );
+                                    if ( s_tm75_84_txt != tot.TM_75_84[1] )
+                                        s_tm75_84.effect( "highlight", {}, 1000 );
+
+                                    var s_tm85_94 = $( '.stat_tm85_94', context );
+                                    s_tm85_94_txt = s_tm75_84.text();
+                                    s_tm85_94.text( tot.TM_85_94[1] );
+                                    if ( s_tm85_94_txt != tot.TM_85_94[1] )
+                                        s_tm85_94.effect( "highlight", {}, 1000 );
+
+                                    var s_tm95_99 = $( '.stat_tm95_99', context );
+                                    s_tm95_99_txt = s_tm75_84.text();
+                                    s_tm95_99.text( tot.TM_95_99[1] );
+                                    if ( s_tm95_99_txt != tot.TM_95_99[1] )
+                                        s_tm95_99.effect( "highlight", {}, 1000 );
+
 									var s_tm100 = $( '.stat_tm100', context );
 									s_tm100_txt = s_tm100.text();
 									s_tm100.text( tot.TM_100[1] );
 									if ( s_tm100_txt != tot.TM_100[1] )
 										s_tm100.effect( "highlight", {}, 1000 );
+
+                                    var s_tm100_public = $( '.stat_tm100_public', context );
+                                    s_tm100_public_txt = s_tm100.text();
+                                    s_tm100_public.text( tot.TM_100_PUBLIC[1] );
+                                    if ( s_tm100_public_txt != tot.TM_100_PUBLIC[1] )
+                                        s_tm100_public.effect( "highlight", {}, 1000 );
 
 									var s_tmic = $( '.stat_tmic', context );
 									s_tmic_txt = s_tmic.text();
@@ -620,7 +656,6 @@ UI = {
 
 
 								} );
-
 								$.each( files_group, function ( jPassword, files_object ) {
 
 										$.each( files_object, function ( id_file, file_details ) {
@@ -663,11 +698,35 @@ UI = {
 											if ( s_tm75_txt != file_details.TM_75_99[1] )
 												s_tm75.effect( "highlight", {}, 1000 );
 
-											var s_tm100 = $( '.stat_tm100', context );
-											s_tm100_txt = s_tm100.text();
-											s_tm100.text( file_details.TM_100[1] );
-											if ( s_tm100_txt != file_details.TM_100[1] )
-												s_tm100.effect( "highlight", {}, 1000 );
+                                            var s_tm75_84 = $( '.stat_tm75_84', context );
+                                            s_tm75_84_txt = s_tm75_84.text();
+                                            s_tm75_84.text( file_details.TM_75_84[1] );
+                                            if ( s_tm75_84_txt != file_details.TM_75_84[1] )
+                                                s_tm75_84.effect( "highlight", {}, 1000 );
+
+                                            var s_tm85_94 = $( '.stat_tm85_94', context );
+                                            s_tm85_94_txt = s_tm75_84.text();
+                                            s_tm85_94.text( file_details.TM_85_94[1] );
+                                            if ( s_tm85_94_txt != file_details.TM_85_94[1] )
+                                                s_tm85_94.effect( "highlight", {}, 1000 );
+
+                                            var s_tm95_99 = $( '.stat_tm95_99', context );
+                                            s_tm95_99_txt = s_tm75_84.text();
+                                            s_tm95_99.text( file_details.TM_95_99[1] );
+                                            if ( s_tm95_99_txt != file_details.TM_95_99[1] )
+                                                s_tm95_99.effect( "highlight", {}, 1000 );
+
+                                            var s_tm100 = $( '.stat_tm100', context );
+                                            s_tm100_txt = s_tm100.text();
+                                            s_tm100.text( file_details.TM_100[1] );
+                                            if ( s_tm100_txt != file_details.TM_100[1] )
+                                                s_tm100.effect( "highlight", {}, 1000 );
+
+                                            var s_tm100_public = $( '.stat_tm100_public', context );
+                                            s_tm100_public_txt = s_tm100_public.text();
+                                            s_tm100_public.text( file_details.TM_100_PUBLIC[1] );
+                                            if ( s_tm100_public_txt != file_details.TM_100_PUBLIC[1] )
+                                                s_tm100_public.effect( "highlight", {}, 1000 );
 
 											var s_tmic = $( '.stat_tmic', context );
 											s_tmic_txt = s_tmic.text();
@@ -708,7 +767,7 @@ UI = {
 								$('#shortloading').remove();
 								$('#longloading .meter').remove();
 								$('#longloading').show();
-								$('#longloading p').addClass('loaded').text('Analysis complete');
+								$('#longloading p').addClass('loaded').html('<span class="complete">Analysis complete</span>').append('<a class="downloadAnalysisReport">Download Analysis Report</a>');
 								}, 1000);
 						/*
 						   setTimeout(function(){
@@ -721,7 +780,102 @@ UI = {
 					 }
 		});
 
-			  }
+	},
+    downloadAnalysisReport: function () {
+        console.log('eccolo');
+
+        var pid = $("#pid").attr("data-pid");
+
+        if( typeof $("#pid").attr("data-pwd") === 'undefined' ){
+            var jpassword =  $('tbody.tablestats' ).attr('data-pwd');
+        }
+
+
+        var ppassword = $("#pid").attr("data-pwd");
+
+
+/*
+        //create an iFrame element
+        var iFrameDownload = $( document.createElement( 'iframe' ) ).hide().prop({
+            id:'iframeDownload',
+            src: ''
+        });
+
+        //append iFrame to the DOM
+        $("body").append( iFrameDownload );
+
+        //generate a token download
+        var downloadToken = new Date().getTime() + "_" + parseInt( Math.random( 0, 1 ) * 10000000 );
+
+        //set event listner, on ready, attach an interval that check for finished download
+        iFrameDownload.ready(function () {
+
+            //create a GLOBAL setInterval so in anonymous function it can be disabled
+            downloadTimer = window.setInterval(function () {
+
+                //check for cookie
+                var token = $.cookie( downloadToken );
+
+                //if the cookie is found, download is completed
+                //remove iframe an re-enable download button
+                if ( token == downloadToken ) {
+                    console.log('scaricato');
+//                    $('#downloadProject').removeClass('disabled').val( $('#downloadProject' ).data('oldValue') ).removeData('oldValue');
+                    window.clearInterval( downloadTimer );
+                    $.cookie( downloadToken, null, { path: '/', expires: -1 });
+                    iFrameDownload.remove();
+                }
+
+            }, 2000);
+
+        });
+
+        //clone the html form and append a token for download
+        var iFrameForm = $("#fileDownload").clone().append(
+            $( document.createElement( 'input' ) ).prop({
+                type:'hidden',
+                name:'downloadToken',
+                value: downloadToken
+            })
+        );
+
+        //append from to newly created iFrame and submit form post
+        iFrameDownload.contents().find('body').append( iFrameForm );
+        iFrameDownload.contents().find("#fileDownload").submit();
+*/
+
+        var form =  '			<form id="downloadAnalysisReportForm" action="/" method="post">' +
+                    '				<input type=hidden name="action" value="downloadAnalysisReport">' +
+                    '				<input type=hidden name="id_project" value="' + pid + '">' +
+                    '				<input type=hidden name="password" value="' + ppassword + '">' +
+                    '				<input type=hidden name="download_type" value="XTRF">' +
+                    '			</form>';
+        $('body').append(form);
+        $('#downloadAnalysisReportForm').submit();
+
+/*
+        APP.doRequest({
+            data: {
+                action: 'downloadAnalysisReport',
+                id_project: pid,
+                password: jpassword,
+                download_type: 'XTRF'
+            },
+            success: function(d) {
+                console.log('d: ', d);
+            }
+        });
+*/
+    }
+
+    /*
+            var iFrameDownload = $( document.createElement( 'iframe' ) ).hide().prop( {
+                id: 'iframeDownload_' + new Date().getTime() + "_" + parseInt( Math.random( 0, 1 ) * 10000000 ),
+                src: $( e.currentTarget ).attr( 'href' )
+            } );
+            $( "body" ).appendmeDownload );
+        }
+    */
 }
 
 function fit_text_to_container(container, child) {

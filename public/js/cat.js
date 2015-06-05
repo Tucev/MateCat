@@ -63,10 +63,13 @@ UI = {
 	changeStatus: function(ob, status, byStatus) {
 //        console.log('byStatus: ', byStatus);
 		var segment = (byStatus) ? $(ob).parents("section") : $('#' + $(ob).data('segmentid'));
-		segment_id = $(segment).attr('id').split('-')[1];
-		$('.percentuage', segment).removeClass('visible');
+		segment_id = this.getSegmentId(segment);
+//        console.log('segment: ', segment);
+//        console.log('segment_id: ', segment_id);
+
+        $('.percentuage', segment).removeClass('visible');
 //		if (!segment.hasClass('saved'))
-		this.setTranslation($(segment).attr('id').split('-')[1], status, false);
+		this.setTranslation(this.getSegmentId(segment), status, false);
 		segment.removeClass('saved');
 		this.setContribution(segment_id, status, byStatus);
 		this.setContributionMT(segment_id, status, byStatus);
@@ -82,7 +85,31 @@ UI = {
 			status: status
 		});
 	},
-	checkHeaviness: function() {
+    getSegmentId: function (segment) {
+        if(typeof segment == 'undefined') return false;
+
+        /*
+         sometimes:
+         typeof $(segment).attr('id') == 'undefined'
+
+         The preeceding if doesn't works because segment is a list ==
+         '[<span class="undoCursorPlaceholder monad" contenteditable="false"></span>]'
+
+         so for now i put a try-catch block here
+
+         TODO FIX
+         */
+        try {
+            return $(segment).attr('id').replace('segment-', '');
+        } catch( e ){
+            return false;
+        }
+
+//        return $(segment).attr('id').split('-')[1];
+
+    },
+
+    checkHeaviness: function() {
 //		console.log('UI.hasToBeRerendered: ', this.hasToBeRerendered);
 //		console.log(this.initSegNum + ' - ' + this.numOpenedSegments + ' - ' + (this.initSegNum/this.numOpenedSegments));
 //		if (($('section').length > 500)||(this.numOpenedSegments > 2)) {
@@ -90,7 +117,7 @@ UI = {
 		if (($('section').length > 500)||((this.initSegNum/this.numOpenedSegments) < 2)||(this.hasToBeRerendered)) {
 			UI.reloadToSegment(UI.currentSegmentId);
 		}
-*/		
+*/
 	},
 	checkIfFinished: function(closing) {
 		if (((this.progress_perc != this.done_percentage) && (this.progress_perc == '100')) || ((closing) && (this.progress_perc == '100'))) {
@@ -151,13 +178,24 @@ UI = {
             this.removeGlossaryMarksFormSource();
 
             this.lastOpenedEditarea.attr('contenteditable', 'false');
+
             this.body.removeClass('editing');
-            $(segment).removeClass("editor");
+            $(segment).removeClass("editor waiting_for_check_result opened");
             $('span.locked.mismatch', segment).removeClass('mismatch');
             if (!this.opening) {
                 this.checkIfFinished(1);
             }
-            return true;
+
+// close split segment
+        	$('.sid .actions .split').removeClass('cancel');
+        	source = $(segment).find('.source');
+        	$(source).removeAttr('style');
+        	$('section').removeClass('split-action');
+        	$('.split-shortcut').html('CTRL + S');
+        	$('.splitBar, .splitArea').remove();
+        	$('.sid .actions').hide();
+// end split segment
+		return true;
         }
 	},
     copySource: function() {
@@ -191,7 +229,7 @@ UI = {
 		}, 300);
 		setTimeout(function() {
 			$('.highlighted1, .highlighted2').removeClass('highlighted1 highlighted2');
-		}, 2000);		
+		}, 2000);
 	},
 
 	confirmDownload: function(res) {
@@ -234,8 +272,10 @@ UI = {
 				return false;
 			}
 		}
-		if ($('.footer', segment).text() !== '')
-			return false; 
+		if ($('.footer', segment).text() !== '') {
+            return false;
+        }
+
 
 		UI.footerHTML =	'<ul class="submenu">' +
 					'	<li class="' + ((config.isReview)? '' : 'active') + ' tab-switcher-tm" id="segment-' + this.currentSegmentId + '-tm">' +
@@ -255,13 +295,13 @@ UI = {
 					'	<div class="overflow"></div>' +
 					'</div>' +
 					'<div class="tab sub-editor concordances" id="segment-' + this.currentSegmentId + '-concordances">' +
-					'	<div class="overflow">' + 
-						((config.tms_enabled)? '<div class="cc-search"><div class="input search-source" contenteditable="true" /><div class="input search-target" contenteditable="true" /></div>' : '<ul class="graysmall message"><li>Concordance is not available when the TM feature is disabled</li></ul>') + 
+					'	<div class="overflow">' +
+						((config.tms_enabled)? '<div class="cc-search"><div class="input search-source" contenteditable="true" /><div class="input search-target" contenteditable="true" /></div>' : '<ul class="graysmall message"><li>Concordance is not available when the TM feature is disabled</li></ul>') +
 					'		<div class="results"></div>' +
 					'	</div>' +
 					'</div>' +
 					'<div class="tab sub-editor glossary" id="segment-' + this.currentSegmentId + '-glossary">' +
-					'	<div class="overflow">' + 
+					'	<div class="overflow">' +
 
 					((config.tms_enabled)?
 					'		<div class="gl-search">' +
@@ -289,7 +329,8 @@ UI = {
         UI.footerHTML = null;
 		if (($(segment).hasClass('loaded')) && (segment === this.currentSegment) && ($(segment).find('.matches .overflow').text() === '')) {
 //			if(isNotSimilar) return false;
-			var d = JSON.parse(localStorage.getItem('contribution-' + config.job_id + '-' + $(segment).attr('id').split('-')[1]));
+            var d = JSON.parse(UI.getFromStorage('contribution-' + config.job_id + '-' + UI.getSegmentId(segment)));
+//            var d = JSON.parse(localStorage.getItem('contribution-' + config.job_id + '-' + UI.getSegmentId(segment)));
 //			console.log('li prendo dal local storage');
 			UI.processContributions(d, segment);
 
@@ -325,7 +366,7 @@ UI = {
 				'		<li class="currSegment" data-segment="' + UI.currentSegmentId + '"><a href="#">Go to current segment</a></li>' +
 				'    </ul>' +
 				'</nav>';
-		this.body.append(menu); 
+		this.body.append(menu);
 /*
 		$('#jobMenu li').each(function() {
 			APP.fitText($(this), $('a', $(this)), 20);
@@ -431,9 +472,9 @@ UI = {
 				(ext == 'resx')?		'extres' :
 				(ext == 'sgml')?	'extsgl' :
 				(ext == 'sgm')?		'extsgm' :
-				(ext == 'properties')? 'extpro' :				
+				(ext == 'properties')? 'extpro' :
 								'extxif';
-		return c;		
+		return c;
 	},
 	createStatusMenu: function(statusMenu) {
 		$("ul.statusmenu").empty().hide();
@@ -478,7 +519,7 @@ UI = {
 //		var step = this.moreSegNum;
 		var section = $('section');
         var seg = (where == 'after') ? section.last() : (where == 'before') ? section.first() : '';
-		var segId = (seg.length) ? seg.attr('id').split('-')[1] : 0;
+		var segId = (seg.length) ? this.getSegmentId(seg) : 0;
 		return segId;
 	},
 	detectStartSegment: function() {
@@ -501,7 +542,8 @@ UI = {
 
     nextUnloadedResultSegment: function() {
 		var found = '';
-		var last = $('section').last().attr('id').split('-')[1];
+		var last = this.getSegmentId($('section').last());
+//		var last = $('section').last().attr('id').split('-')[1];
 		$.each(this.searchResultsSegments, function() {
 //            var start = new Date().getTime();
 //            for (var i = 0; i < 1e7; i++) {
@@ -524,7 +566,7 @@ UI = {
 	footerMessage: function(msg, segment) {
 		$('.footer-message', segment).remove();
 		$('.submenu', segment).append('<li class="footer-message">' + msg + '</div>');
-		$('.footer-message', segment).fadeOut(6000);	
+		$('.footer-message', segment).fadeOut(6000);
 	},
 	getMoreSegments: function(where) {
 		if ((where == 'after') && (this.noMoreSegmentsAfter))
@@ -542,7 +584,7 @@ UI = {
 			$("section").each(function() {
 				if ($(this).offset().top > $(window).scrollTop()) {
 //				if ($(this).offset().top > $(window).scrollTop()) {
-					UI.segMoving = $(this).attr('id').split('-')[1];
+					UI.segMoving = UI.getSegmentId($(this));
 					return false;
 				}
 			});
@@ -583,9 +625,9 @@ UI = {
 			$.each(d.data.files, function() {
 				numsegToAdd = numsegToAdd + this.segments.length;
 			});
-			this.renderSegments(d.data.files, where, false);
+			this.renderFiles(d.data.files, where, false);
 
-			// if getting segments before, UI points to the segment triggering the event 
+			// if getting segments before, UI points to the segment triggering the event
 			if ((where == 'before') && (numsegToAdd)) {
 				this.scrollSegment($('#segment-' + this.segMoving));
 			}
@@ -611,6 +653,7 @@ UI = {
 		$('#outer').removeClass('loading loadingBefore');
 		this.loadingMore = false;
 		this.setWaypoints();
+        $(window).trigger('segmentsAdded');
 	},
 	getNextSegment: function(segment, status) {//console.log('getNextSegment: ', segment);
 		var seg = this.currentSegment;
@@ -626,10 +669,9 @@ UI = {
 //		console.log('UI.nextUntranslatedSegmentIdByServer: ', UI.nextUntranslatedSegmentIdByServer);
 //		console.log('UI.noMoreSegmentsAfter: ', UI.noMoreSegmentsAfter);
 		if (n.length) { // se ci sono sotto segmenti caricati con lo status indicato
-//			console.log('1');
-			this.nextUntranslatedSegmentId = $(n).attr('id').split('-')[1];
+			this.nextUntranslatedSegmentId = this.getSegmentId($(n));
 		} else {
-			this.nextUntranslatedSegmentId = UI.nextUntranslatedSegmentIdByServer;			
+			this.nextUntranslatedSegmentId = UI.nextUntranslatedSegmentIdByServer;
 		}
 //		} else if ((UI.nextUntranslatedSegmentIdByServer) && (!UI.noMoreSegmentsAfter)) {
 //			console.log('2');
@@ -639,13 +681,14 @@ UI = {
 //			this.nextUntranslatedSegmentId = 0;
 //		}
 //		console.log('UI.nextUntranslatedSegmentId: ', UI.nextUntranslatedSegmentId);
-
-		var i = $(seg).next();
-		if (!i.length) {
+//console.log('seg: ', seg);
+        var i = $(seg).next();
+//console.log('i: ', i);
+        if (!i.length) {
 			i = $(seg).parents('article').next().find('section').first();
 		}
 		if (i.length) {
-			this.nextSegmentId = $(i).attr('id').split('-')[1];
+			this.nextSegmentId = this.getSegmentId($(i));
 		} else {
 			this.nextSegmentId = 0;
 		}
@@ -711,7 +754,7 @@ UI = {
 			this.startSegmentId = startSegmentId;
 		this.body.addClass('loaded');
 		if (typeof d.data.files != 'undefined') {
-			this.renderSegments(d.data.files, where, this.firstLoad);
+			this.renderFiles(d.data.files, where, this.firstLoad);
 			if ((options.openCurrentSegmentAfter) && (!options.segmentToScroll) && (!options.segmentToOpen)) {
 				seg = (UI.firstLoad) ? this.currentSegmentId : UI.startSegmentId;
 				this.gotoSegment(seg);
@@ -782,8 +825,10 @@ UI = {
 				data: {
 					action: 'getUpdatedTranslations',
 					last_timestamp: lastUpdateRequested.getTime(),
-					first_segment: $('section').first().attr('id').split('-')[1],
-					last_segment: $('section').last().attr('id').split('-')[1]
+					first_segment: UI.getSegmentId($('section').first()),
+//					first_segment: $('section').first().attr('id').split('-')[1],
+					last_segment: UI.getSegmentId($('section').last())
+//					last_segment: $('section').last().attr('id').split('-')[1]
 				},
 				error: function() {
 					UI.failedConnection(0, 'getUpdatedTranslations');
@@ -841,7 +886,7 @@ UI = {
 			$("#segment-" + UI.nextUntranslatedSegmentId + " .editarea").trigger("click");
 		}
 	},
-	
+
 	gotoOpenSegment: function(quick) {
         quick = quick || false;
 
@@ -875,10 +920,13 @@ UI = {
 			this.scrollSegment(prev);
 	},
 	gotoSegment: function(id) {
-//        console.log('gotoSegment: ', id);
-		var el = $("#segment-" + id + "-target").find(".editarea");
+        if((!this.segmentIsLoaded(id))&&(id.toString().split('-').length > 1)) {
+            id = id.toString().split('-')[0];
+        }
+        var el = $("#segment-" + id + "-target").find(".editarea");
+//        console.log('el: ', el);
         $(el).click();
-	},
+    },
 	initSegmentNavBar: function() {
 		if (config.firstSegmentOfFiles.length == 1) {
 			$('#segmentNavBar .prevfile, #segmentNavBar .nextfile').addClass('disabled');
@@ -962,19 +1010,19 @@ UI = {
 		var s2 = $('.source', segment).text();
 		var isNotSimilar = lev(s1,s2)/Math.max(s1.length,s2.length)*100 >50;
 		var isEqual = (s1 == s2);
-		
+
 		getNormally = isNotSimilar || isEqual;
 //		console.log('getNormally: ', getNormally);
 		this.activateSegment(getNormally);
         segment.trigger('open');
-
+        $('section').first().nextAll('.undoCursorPlaceholder').remove();
         this.getNextSegment(this.currentSegment, 'untranslated');
 
 		if ((!this.readonly)&&(!getNormally)) {
 			$('#segment-' + segment_id + ' .alternatives .overflow').hide();
 		}
 		this.setCurrentSegment();
-		
+
 		if (!this.readonly) {
  //           console.log('getNormally: ', getNormally);
 			if(getNormally) {
@@ -986,11 +1034,11 @@ UI = {
 				setTimeout(function() {
 					$('.alternatives .overflow', segment).show();
 					UI.getContribution(segment, 0);
-				}, 3000);				
+				}, 3000);
 			}
-		}		
-		
-		
+		}
+
+
 //		if(!isNotSimilar) $('.editor .alternatives .overflow').hide();
 		this.currentSegment.addClass('opened');
 
@@ -1014,6 +1062,19 @@ UI = {
 			var lastOpened = $(this.lastOpenedSegment).attr('id');
 			if (lastOpened != 'segment-' + this.currentSegmentId)
 				this.closeSegment(this.lastOpenedSegment, 0, operation);
+            if(this.lastOpenedSegment) {
+ //               this.lastOpenedSegment.find('.editarea').html('ss');
+ /*
+                setTimeout(function() {
+                    UI.lastOpenedSegment.attr('data-hash', UI.lastOpenedSegment.attr('data-hash'));
+                }, 1000);
+                this.lastOpenedSegment.attr('data-hash', this.lastOpenedSegment.attr('data-hash'));
+                */
+            }
+
+                //console.log("this.lastOpenedSegment: ", this.lastOpenedSegment.attr('data-hash'));
+//            console.log("this.lastOpenedSegment.attr('data-tagmode): ", this.lastOpenedSegment.attr('data-tagmode'));
+//                this.lastOpenedSegment.attr('data-autopropagated', this.lastOpenedSegment.attr('data-autopropagated'));
 		}
 		this.opening = false;
 		this.body.addClass('editing');
@@ -1063,7 +1124,7 @@ UI = {
 //		sel.removeAllRanges();
 //		sel.addRange(range);
 //		el.focus();
-		
+
 		 $(el).focus();
 		 if (typeof window.getSelection != "undefined" && typeof document.createRange != "undefined") {
 			var range = document.createRange();
@@ -1078,7 +1139,7 @@ UI = {
 			textRange.collapse(false);
 			textRange.select();
 		 }
-		
+
 	},
 	registerQACheck: function() {
 		clearTimeout(UI.pendingQACheck);
@@ -1135,7 +1196,7 @@ UI = {
 //		$('p.alternatives', segment).remove();
 	},
 	removeFooter: function(byButton) {
-		var segment = (byButton) ? this.currentSegment : this.lastOpenedSegment;		
+		var segment = (byButton) ? this.currentSegment : this.lastOpenedSegment;
 		$('#' + segment.attr('id') + ' .footer').empty();
 	},
 	removeHeader: function(byButton) {
@@ -1145,8 +1206,9 @@ UI = {
 	removeStatusMenu: function(statusMenu) {
 		statusMenu.empty().hide();
 	},
-	renderSegments: function(files, where, starting) {
-		$.each(files, function(k) {
+	renderFiles: function(files, where, starting) {
+
+        $.each(files, function(k) {
 			var newFile = '';
 //            var fid = fs['ID_FILE'];
 			var fid = k;
@@ -1178,85 +1240,8 @@ UI = {
 						'	</ul>';
 			}
 
-			var t = config.time_to_edit_enabled;
-			$.each(this.segments, function() {
-//                this.readonly = true;
-				var readonly = ((this.readonly == 'true')||(UI.body.hasClass('archived'))) ? true : false;
-                var autoPropagated = this.autopropagated_from != 0;
-				var escapedSegment = htmlEncode(this.segment.replace(/\"/g, "&quot;"));
-//				if(this.sid == '13735228') console.log('escapedsegment: ', escapedSegment);
-
-                /* this is to show line feed in source too, because server side we replace \n with placeholders */
-                escapedSegment = escapedSegment.replace( config.lfPlaceholderRegex, "\n" );
-                escapedSegment = escapedSegment.replace( config.crPlaceholderRegex, "\r" );
-                escapedSegment = escapedSegment.replace( config.crlfPlaceholderRegex, "\r\n" );
-
-				/* tab placeholders replacement */
- //               escapedSegment = escapedSegment.replace( config.tabPlaceholderRegex, "<span class=" );
-				
-                /* see also replacement made in source content below */
-                /* this is to show line feed in source too, because server side we replace \n with placeholders */
-/*
-                tagModes = (UI.tagModesEnabled)?                         '						<ul class="tagMode">' +
-                    '						   <li class="toggle" style="font-size: 60%">&lt;&rarr;<span style="font-size: 150%">&gt;</span>' +
-                    '</li>' +
-//                    '						   <li class="crunched">&lt;&gt;</li>' +
-//                    '						   <li class="extended">&lt;...&gt;</li>' +
-                    '						</ul>' : '';
-*/
-                newFile += '<section id="segment-' + this.sid + '" data-hash="' + this.segment_hash + '" data-autopropagated="' + autoPropagated + '" class="' + ((readonly) ? 'readonly ' : '') + 'status-' + ((!this.status) ? 'new' : this.status.toLowerCase()) + ((this.has_reference == 'true')? ' has-reference' : '') + '" data-tagmode="crunched">' +
-						'	<a tabindex="-1" href="#' + this.sid + '"></a>' +
-						'	<div class="sid" title="' + this.sid + '"><div class="txt">' + UI.shortenId(this.sid) + '</div><div class="actions"><a class="split" href="#">Split</a></div></div>' +
-((this.sid == config.first_job_segment)? '	<span class="start-job-marker"></span>' : '') +
-((this.sid == config.last_job_segment)? '	<span class="end-job-marker"></span>' : '') +
-						'	<div class="body">' +
-						'		<div class="header toggle" id="segment-' + this.sid + '-header">' +
-//						'			<h2 title="" class="percentuage"><span></span></h2>' + 
-//						'			<a href="#" id="segment-' + this.sid + '-close" class="close" title="Close this segment"></a>' +
-//						'			<a href="#" id="segment-' + this.sid + '-context" class="context" title="Open context" target="_blank">Context</a>' +
-						'		</div>' +
-						'		<div class="text">' +
-						'			<div class="wrap">' +               /* this is to show line feed in source too, because server side we replace \n with placeholders */
-						'				<div class="outersource"><div class="source item" tabindex="0" id="segment-' + this.sid + '-source" data-original="' + escapedSegment + '">' + UI.decodePlaceholdersToText(this.segment, true, this.sid, 'source') + '</div>' +
-						'				<div class="copy" title="Copy source to target">' +
-						'                   <a href="#"></a>' +
-						'                   <p>ALT+CTRL+I</p>' +
-//						'                   <p>' + ((UI.isMac) ? 'CMD' : 'CTRL') + '+RIGHT</p>' +
-						'				</div>' +
-						'				<div class="target item" id="segment-' + this.sid + '-target">' +
-						'					<span class="hide toggle"> ' +
-						'						<!-- a href="#" class="warning normalTip exampleTip" title="Warning: as">!</a -->' +
-						'					</span>' +
-						'					<div class="textarea-container">' +
-						'						<span class="loader"></span>' +
-//                        tagModes +
-						'						<div class="' + ((readonly) ? 'area' : 'editarea') + ' targetarea invisible" ' + ((readonly) ? '' : 'contenteditable="false" ') + 'spellcheck="true" lang="' + config.target_lang.toLowerCase() + '" id="segment-' + this.sid + '-editarea" data-sid="' + this.sid + '">' + ((!this.translation) ? '' : UI.decodePlaceholdersToText(this.translation, true, this.sid, 'translation')) + '</div>' +
-                        '                       <div class="toolbar">' +
-((UI.tagModesEnabled)?    '                           <a href="#" class="tagModeToggle"><span class="icon-chevron-left"></span><span class="icon-tag-expand"></span><span class="icon-chevron-right"></a>' : '') +
-						'                           <ul class="editToolbar">' +
-						'                               <li class="uppercase" title="Uppercase"></li>' +
-						'                               <li class="lowercase" title="Lowercase"></li>' +
-						'                               <li class="capitalize" title="Capitalized"></li>' +
-						'                           </ul>' +
-                        '                       </div>' +
-						'						<p class="save-warning" title="Segment modified but not saved"></p>' +
-						'					</div> <!-- .textarea-container -->' +
-						'				</div> <!-- .target -->' +
-						'			</div></div> <!-- .wrap -->' +
-						'						<ul class="buttons toggle" id="segment-' + this.sid + '-buttons"></ul>' +
-						'			<div class="status-container">' +
-						'				<a href=# title="' + ((!this.status) ? 'Change segment status' : this.status.toLowerCase() + ', click to change it') + '" class="status" id="segment-' + this.sid + '-changestatus"></a>' +
-						'			</div> <!-- .status-container -->' +
-						'		</div> <!-- .text -->' +
-						'		<div class="timetoedit" data-raw_time_to_edit="' + this.time_to_edit + '">' +
-						((t) ? '			<span class=edit-min>' + this.parsed_time_to_edit[1] + '</span>m:' : '') +
-						((t) ? '			<span class=edit-sec>' + this.parsed_time_to_edit[2] + '</span>s' : '') +
-						'		</div>' +
-						'		<div class="footer toggle"></div> <!-- .footer -->     ' +
-						'	</div> <!-- .body -->' +
-						'	<ul class="statusmenu"></ul>' +
-						'</section> ';
-			});
+            newSegments = UI.renderSegments(this.segments, false);
+            newFile += newSegments;
 			if (articleToAdd) {
 				newFile += '</article>';
 			}
@@ -1286,13 +1271,184 @@ UI = {
 			this.init();
 		}
 	},
-	saveSegment: function(segment) {
+    getSegmentMarkup: function (segment, t, readonly, autoPropagated, escapedSegment, splitAr, splitGroup, originalId) {
+//        console.log(splitGroup[0] + ' - ' + (splitGroup[splitGroup.length - 1]) );
+//        console.log('VEDIAMO: ', segment);
+//        console.log('"'+segment.sid+'" - "'+splitGroup[0]);
+        // TEMP
+//        segment.version = '12345678';
+        // END TEMP
+        splitGroup = segment.split_group || splitGroup || '';
+        splitPositionClass = (segment.sid == splitGroup[0])? ' splitStart' : (segment.sid == splitGroup[splitGroup.length - 1])? ' splitEnd' : (splitGroup.length)? ' splitInner' : '';
+        newSegmentMarkup = '<section id="segment-' + segment.sid + '" data-hash="' + segment.segment_hash + '" data-autopropagated="' + autoPropagated + '" data-version="' + segment.version + '" class="' + ((readonly) ? 'readonly ' : '') + 'status-' + ((!segment.status) ? 'new' : segment.status.toLowerCase()) + ((segment.has_reference == 'true')? ' has-reference' : '') + splitPositionClass + '" data-split-group="' + ((splitGroup.length)? splitGroup.toString() : '')+ '" data-split-original-id="' + originalId + '" data-tagmode="crunched">' +
+            '	<a tabindex="-1" href="#' + segment.sid + '"></a>' +
+//            '	<div class="sid" title="' + segment.sid + '"><div class="txt">' + UI.shortenId(segment.sid) + '</div></div>' +
+            '	<div class="sid" title="' + segment.sid + '"><div class="txt">' + UI.shortenId(segment.sid) + '</div><div class="actions"><a class="split" href="#"><span class="icon-split"></span></a><p class="split-shortcut">CTRL + S</p></div></div>' +
+            ((segment.sid == config.first_job_segment)? '	<span class="start-job-marker"></span>' : '') +
+            ((segment.sid == config.last_job_segment)? '	<span class="end-job-marker"></span>' : '') +
+            '	<div class="body">' +
+            '		<div class="header toggle" id="segment-' + segment.sid + '-header">' +
+//						'			<h2 title="" class="percentuage"><span></span></h2>' +
+//						'			<a href="#" id="segment-' + segment.sid + '-close" class="close" title="Close this segment"></a>' +
+//						'			<a href="#" id="segment-' + segment.sid + '-context" class="context" title="Open context" target="_blank">Context</a>' +
+            '		</div>' +
+            '		<div class="text">' +
+            '			<div class="wrap">' +               /* this is to show line feed in source too, because server side we replace \n with placeholders */
+            '				<div class="outersource"><div class="source item" tabindex="0" id="segment-' + segment.sid + '-source" data-original="' + escapedSegment + '">' + UI.decodePlaceholdersToText(segment.segment, true, segment.sid, 'source') + '</div>' +
+//            '               <div class="actions"><a class="split" href="#"><span class="icon-split"></span></a><p class="split-shortcut">CTRL + S</p></div>' +
+            '				<div class="copy" title="Copy source to target">' +
+            '                   <a href="#"></a>' +
+            '                   <p>ALT+CTRL+I</p>' +
+//						'                   <p>' + ((UI.isMac) ? 'CMD' : 'CTRL') + '+RIGHT</p>' +
+            '				</div>' +
+            '				<div class="target item" id="segment-' + segment.sid + '-target">' +
+            '					<span class="hide toggle"> ' +
+            '						<!-- a href="#" class="warning normalTip exampleTip" title="Warning: as">!</a -->' +
+            '					</span>' +
+            '					<div class="textarea-container">' +
+            '						<span class="loader"></span>' +
+//                        tagModes +
+            '						<div class="' + ((readonly) ? 'area' : 'editarea') + ' targetarea invisible" ' + ((readonly) ? '' : 'contenteditable="false" ') + 'spellcheck="true" lang="' + config.target_lang.toLowerCase() + '" id="segment-' + segment.sid + '-editarea" data-sid="' + segment.sid + '">' + ((!segment.translation) ? '' : UI.decodePlaceholdersToText(segment.translation, true, segment.sid, 'translation')) + '</div>' +
+            '                       <div class="toolbar">' +
+            ((UI.tagModesEnabled)?    '                           <a href="#" class="tagModeToggle"><span class="icon-chevron-left"></span><span class="icon-tag-expand"></span><span class="icon-chevron-right"></a>' : '') +
+            '                           <ul class="editToolbar">' +
+            '                               <li class="uppercase" title="Uppercase"></li>' +
+            '                               <li class="lowercase" title="Lowercase"></li>' +
+            '                               <li class="capitalize" title="Capitalized"></li>' +
+            '                           </ul>' +
+            '                       </div>' +
+            '						<p class="save-warning" title="Segment modified but not saved"></p>' +
+            '					</div> <!-- .textarea-container -->' +
+            '						<ul class="buttons toggle" id="segment-' + segment.sid + '-buttons"></ul>' +
+            '				</div> <!-- .target -->' +
+            '			</div></div> <!-- .wrap -->' +
+            '			<div class="status-container">' +
+            '				<a href=# title="' + ((!segment.status) ? 'Change segment status' : segment.status.toLowerCase() + ', click to change it') + '" class="status" id="segment-' + segment.sid + '-changestatus"></a>' +
+            '			</div> <!-- .status-container -->' +
+            '		</div> <!-- .text -->' +
+            '		<div class="timetoedit" data-raw_time_to_edit="' + segment.time_to_edit + '">' +
+            ((t) ? '			<span class=edit-min>' + segment.parsed_time_to_edit[1] + '</span>m:' : '') +
+            ((t) ? '			<span class=edit-sec>' + segment.parsed_time_to_edit[2] + '</span>s' : '') +
+            '		</div>' +
+            '		<div class="footer toggle"></div> <!-- .footer -->     ' +
+            '	</div> <!-- .body -->' +
+            '	<ul class="statusmenu"></ul>' +
+            '</section> ';
+        return newSegmentMarkup;
+    },
+    stripSpans: function (str) {
+        return str.replace(/<span(.*?)>/gi, '').replace(/<\/span>/gi, '');
+    },
+    normalizeSplittedSegments: function (segments) {
+//        console.log('segments: ', segments);
+
+        newSegments = [];
+        $.each(segments, function (index) {
+//            console.log('seg: ', this.segment.split(UI.splittedTranslationPlaceholder));
+//            console.log('aaa: ', this.segment);
+            splittedSourceAr = this.segment.split(UI.splittedTranslationPlaceholder);
+//            console.log('splittedSourceAr: ', splittedSourceAr);
+            if(splittedSourceAr.length > 1) {
+//            if(this.split_points_source.length) {
+//                console.log('a');
+                segment = this;
+                splitGroup = [];
+                $.each(splittedSourceAr, function (i) {
+                    splitGroup.push(segment.sid + '-' + (i + 1));
+                });
+
+                $.each(splittedSourceAr, function (i) {
+//                    console.log('bbb: ', this);
+//                    console.log('source?: ', segment.segment.substring(segment.split_points_source[i], segment.split_points_source[i+1]));
+                    translation = segment.translation.split(UI.splittedTranslationPlaceholder)[i];
+//                    translation = (segment.translation == '')? '' : segment.translation.substring(segment.split_points_target[i], segment.split_points_target[i+1]);
+//                    console.log('ddd: ', this);
+                    //temp
+                    //segment.target_chunk_lengths = {"len":[0,9,13],"statuses":["TRANSLATED","APPROVED"]};
+                    //end temp
+                    status = segment.target_chunk_lengths.statuses[i];
+                    console.log('vediamo status: ', status);
+                    segData = {
+                        autopropagated_from: "0",
+                        has_reference: "false",
+                        parsed_time_to_edit: ["00", "00", "00", "00"],
+                        readonly: "false",
+                        segment: splittedSourceAr[i],
+//                        segment: segment.segment.substring(segment.split_points_source[i], segment.split_points_source[i+1]),
+                        segment_hash: segment.segment_hash,
+                        sid: segment.sid + '-' + (i + 1),
+                        split_group: splitGroup,
+                        split_points_source: [],
+                        status: status,
+                        time_to_edit: "0",
+                        translation: translation,
+                        version: segment.version,
+                        warning: "0"
+                    }
+                    newSegments.push(segData);
+                    segData = null;
+                });
+            } else {
+//                console.log('b');
+                newSegments.push(this);
+            }
+
+        });
+// console.log('newsegments 1: ', newSegments);
+        return newSegments;
+    },
+
+    renderSegments: function (segments, justCreated, splitAr, splitGroup) {
+        segments = this.normalizeSplittedSegments(segments);
+        splitAr = splitAr || [];
+        splitGroup = splitGroup || [];
+        var t = config.time_to_edit_enabled;
+        newSegments = '';
+        $.each(segments, function(index) {
+//                this.readonly = true;
+            var readonly = ((this.readonly == 'true')||(UI.body.hasClass('archived'))) ? true : false;
+            var autoPropagated = this.autopropagated_from != 0;
+//            console.log('this: ', this);
+            if(typeof this.segment == 'object') console.log(this);
+//            console.log('this.segment: ', this);
+
+            try {
+                if($.parseHTML(this.segment).length) {
+                    this.segment = UI.stripSpans(this.segment);
+                };
+            } catch ( e ){
+                //if we split a segment in more than 3 parts and reload the cattool
+                //this exception is raised:
+                // Uncaught TypeError: Cannot read property 'length' of null
+                //so SKIP in a catched exception
+            }
+
+//            console.log('corrected: ', this.segment.replace(/<span(.*?)>/gi, ''));
+            var escapedSegment = htmlEncode(this.segment.replace(/\"/g, "&quot;"));
+//            console.log('escapedSegment: ', escapedSegment);
+
+            /* this is to show line feed in source too, because server side we replace \n with placeholders */
+            escapedSegment = escapedSegment.replace( config.lfPlaceholderRegex, "\n" );
+            escapedSegment = escapedSegment.replace( config.crPlaceholderRegex, "\r" );
+            escapedSegment = escapedSegment.replace( config.crlfPlaceholderRegex, "\r\n" );
+            originalId = this.sid.split('-')[0];
+            if((typeof this.split_points_source == 'undefined') || (!this.split_points_source.length) || justCreated) {
+                newSegments += UI.getSegmentMarkup(this, t, readonly, autoPropagated, escapedSegment, splitAr, splitGroup, originalId, 0);
+            } else {
+
+            }
+
+        });
+        return newSegments;
+    },
+
+    saveSegment: function(segment) {
 		var status = (segment.hasClass('status-translated')) ? 'translated' : (segment.hasClass('status-approved')) ? 'approved' : (segment.hasClass('status-rejected')) ? 'rejected' : (segment.hasClass('status-new')) ? 'new' : 'draft';
 		if (status == 'new') {
 			status = 'draft';
 		}
 		console.log('SAVE SEGMENT');
-		this.setTranslation($(segment).attr('id').split('-')[1], status, 'autosave');
+		this.setTranslation(this.getSegmentId(segment), status, 'autosave');
 		segment.addClass('saved');
 	},
 	renderAndScrollToSegment: function(sid) {
@@ -1322,44 +1478,58 @@ UI = {
 		var spread = 23;
 		var current = this.currentSegment;
 		var previousSegment = $(segment).prev('section');
-//		console.log(previousSegment);
 
 		if (!previousSegment.length) {
 			previousSegment = $(segment);
 			spread = 103;
 		}
-		var destination = "#" + previousSegment.attr('id');
+        if(!previousSegment.length) return false;
+        var destination = "#" + previousSegment.attr('id');
 		var destinationTop = $(destination).offset().top;
 		if (this.firstScroll) {
 			destinationTop = destinationTop + 100;
 			this.firstScroll = false;
 		}
-
 		if ($(current).length) { // if there is an open segment
 			if ($(segment).offset().top > $(current).offset().top) { // if segment to open is below the current segment
 				if (!current.is($(segment).prev())) { // if segment to open is not the immediate follower of the current segment
 					var diff = (this.firstLoad) ? ($(current).height() - 200 + 120) : 20;
+                    console.log('a');
 					destinationTop = destinationTop - diff;
 				} else { // if segment to open is the immediate follower of the current segment
+                    console.log('b');
 					destinationTop = destinationTop - spread;
 				}
 			} else { // if segment to open is above the current segment
+//                console.log('c');
+//                if((typeof UI.provaCoso != 'undefined')&&(config.isReview)) spread = -17;
 				destinationTop = destinationTop - spread;
+                UI.provaCoso = true;
 			}
 		} else { // if no segment is opened
+            console.log('d');
 			destinationTop = destinationTop - spread;
 		}
 
 		$("html,body").stop();
         pointSpeed = (quick)? 0 : 500;
-		$("html,body").animate({
-			scrollTop: destinationTop - 20
-		}, pointSpeed);
+        if(config.isReview) {
+            setTimeout(function() {
+                $("html,body").animate({
+                    scrollTop: segment.prev().offset().top - $('.header-menu').height()
+                }, 500);
+            }, 300);
+        } else {
+            $("html,body").animate({
+                scrollTop: destinationTop - 20
+            }, pointSpeed);
+        }
 		setTimeout(function() {
 			UI.goingToNext = false;
-		}, pointSpeed);
+        }, pointSpeed);
 	},
 	segmentIsLoaded: function(segmentId) {
+//        segmentId = segmentId.toString().split('-')[0];
 		if ($('#segment-' + segmentId).length) {
 			return true;
 		} else {
@@ -1429,6 +1599,7 @@ UI = {
 				window.location.hash = UI.currentSegmentId;
 			}, 300);
 		}
+//        if(id_segment.toString().split('-').length > 1) id_segment = id_segment.toString().split('-');
 //		var file = this.currentFile;
 		if (this.readonly)
 			return;
@@ -1436,41 +1607,65 @@ UI = {
 			data: {
 				action: 'setCurrentSegment',
 				password: config.password,
-				id_segment: id_segment,
+				id_segment: id_segment.toString(),
+//				id_segment: id_segment.toString().split('-')[0],
 				id_job: config.job_id
 			},
-			context: reqArguments,
+			context: [reqArguments, id_segment],
 			error: function() {
-				UI.failedConnection(this, 'setCurrentSegment');
+				UI.failedConnection(this[0], 'setCurrentSegment');
 			},
 			success: function(d) {
-				UI.setCurrentSegment_success(d);
+				UI.setCurrentSegment_success(this[1], d);
 			}
 		});
 	},
-	setCurrentSegment_success: function(d) {
+	setCurrentSegment_success: function(id_segment, d) {
 		if (d.errors.length)
 			this.processErrors(d.errors, 'setCurrentSegment');
 		this.nextUntranslatedSegmentIdByServer = d.nextSegmentId;
 //		this.nextUntranslatedSegmentIdByServer = d.nextUntranslatedSegmentId;
         this.propagationsAvailable = d.data.prop_available;
 		this.getNextSegment(this.currentSegment, 'untranslated');
-		if(config.alternativesEnabled) this.detectTranslationAlternatives(d);
+        if(config.alternativesEnabled) this.getTranslationMismatches(id_segment);
+//		if(config.alternativesEnabled) this.detectTranslationAlternatives(d);
         $('html').trigger('setCurrentSegment_success', d);
     },
-    detectTranslationAlternatives: function(d) {
+    getTranslationMismatches: function (id_segment) {
+        APP.doRequest({
+            data: {
+                action: 'getTranslationMismatches',
+                password: config.password,
+                id_segment: id_segment.toString(),
+                id_job: config.job_id
+            },
+            context: id_segment,
+            error: function(d) {
+                UI.failedConnection(this, 'getTranslationMismatches');
+            },
+            success: function(d) {
+                if (d.errors.length) {
+                    UI.processErrors(d.errors, 'setTranslation');
+                } else {
+                    UI.detectTranslationAlternatives(d);
+                }
+            }
+        });
+    },
 
+    detectTranslationAlternatives: function(d) {
+console.log('ecco');
         /**
          *
          * the three rows below are commented because business logic has changed, now auto-propagation info
          * is sent as response in getMoreSegments and added as data in the "section" Tag and
-         * rendered/prepared in renderSegments/createHeader
+         * rendered/prepared in renderFiles/createHeader
          * and managed in propagateTranslation
          *
          * TODO
          * I leave them here but they should be removed
          *
-         * @see renderSegments
+         * @see renderFiles
          * @see createHeader
          * @see propagateTranslation
          *
@@ -1509,7 +1704,7 @@ UI = {
             tab.find('.number').text('(' + numAlt + ')');
             UI.renderAlternatives(d);
             tab.show();
-            tab.trigger('click');
+//            tab.trigger('click');
         }
     },
     renderAlternatives: function(d) {
@@ -1520,7 +1715,7 @@ UI = {
         segment_id = UI.currentSegmentId;
         escapedSegment = UI.decodePlaceholdersToText(UI.currentSegment.find('.source').html(), false, segment_id, 'render alternatives');
         console.log('escapedSegment: ', escapedSegment);
-
+/*
 		function prepareTranslationDiff( translation ){
 			_str = translation.replace( config.lfPlaceholderRegex, "\n" )
 					.replace( config.crPlaceholderRegex, "\r" )
@@ -1541,18 +1736,42 @@ UI = {
 			UI.dmp.diff_cleanupEfficiency( diff_obj );
 			return diff_obj;
 		}
-
+*/
+        mainStr = UI.currentSegment.find('.editarea').text();
         $.each(d.data.editable, function(index) {
-            diff_obj = prepareTranslationDiff( this.translation );
+            console.log('this.translation: ', this.translation);
+            diff_obj = UI.execDiff(mainStr, this.translation);
+//            diff_obj = prepareTranslationDiff( this.translation );
             $('.sub-editor.alternatives .overflow', segment).append('<ul class="graysmall" data-item="' + (index + 1) + '"><li class="sugg-source"><span id="' + segment_id + '-tm-' + this.id + '-source" class="suggestion_source">' + escapedSegment + '</span></li><li class="b sugg-target"><!-- span class="switch-editing">Edit</span --><span class="graysmall-message">CTRL+' + (index + 1) + '</span><span class="translation">' + UI.dmp.diff_prettyHtml(diff_obj) + '</span><span class="realData hide">' + this.translation + '</span></li><li class="goto"><a href="#" data-goto="' + this.involved_id[0]+ '">View</a></li></ul>');
         });
 
         $.each(d.data.not_editable, function(index1) {
-            diff_obj = prepareTranslationDiff( this.translation );
+            diff_obj = UI.execDiff(mainStr, this.translation);
             $('.sub-editor.alternatives .overflow', segment).append('<ul class="graysmall notEditable" data-item="' + (index1 + d.data.editable.length + 1) + '"><li class="sugg-source"><span id="' + segment_id + '-tm-' + this.id + '-source" class="suggestion_source">' + escapedSegment + '</span></li><li class="b sugg-target"><!-- span class="switch-editing">Edit</span --><span class="graysmall-message">CTRL+' + (index1 + d.data.editable.length + 1) + '</span><span class="translation">' + UI.dmp.diff_prettyHtml(diff_obj) + '</span><span class="realData hide">' + this.translation + '</span></li><li class="goto"><a href="#" data-goto="' + this.involved_id[0]+ '">View</a></li></ul>');
         });
 
     },
+    execDiff: function (mainStr, cfrStr) {
+        _str = cfrStr.replace( config.lfPlaceholderRegex, "\n" )
+            .replace( config.crPlaceholderRegex, "\r" )
+            .replace( config.crlfPlaceholderRegex, "\r\n" )
+            .replace( config.tabPlaceholderRegex, "\t" )
+            //.replace( config.tabPlaceholderRegex, String.fromCharCode( parseInt( 0x21e5, 10 ) ) )
+            .replace( config.nbspPlaceholderRegex, String.fromCharCode( parseInt( 0xA0, 10 ) ) );
+//        _str  = htmlDecode(_str );
+        _edit = mainStr.replace( String.fromCharCode( parseInt( 0x21e5, 10 ) ), "\t" );
+//        _edit = UI.currentSegment.find('.editarea').text().replace( String.fromCharCode( parseInt( 0x21e5, 10 ) ), "\t" );
+
+        //Prepend Unicode Character 'ZERO WIDTH SPACE' invisible, not printable, no spaced character,
+        //used to detect initial and final spaces in html diff
+        _str  = String.fromCharCode( parseInt( 0x200B, 10 ) ) + _str + String.fromCharCode( parseInt( 0x200B, 10 ) );
+        _edit = String.fromCharCode( parseInt( 0x200B, 10 ) ) + _edit + String.fromCharCode( parseInt( 0x200B, 10 ) );
+
+        diff_obj = UI.dmp.diff_main( _edit, _str );
+        UI.dmp.diff_cleanupEfficiency( diff_obj );
+        return diff_obj;
+    },
+
     chooseAlternative: function(w) {console.log('chooseAlternative');
 //        console.log( $('.sugg-target .realData', w ) );
         this.copyAlternativeInEditarea( UI.decodePlaceholdersToText( $('.sugg-target .realData', w ).text(), true, UI.currentSegmentId, 'choose alternative' ) );
@@ -1587,7 +1806,9 @@ UI = {
         }
 		$('.downloadtr-button').removeClass("draft translated approved").addClass(t);
         var label = (t == 'translated' || t == 'approved') ? 'DOWNLOAD TRANSLATION' : 'PREVIEW';
+        var isDownload = (t == 'translated' || t == 'approved') ? 'true' : 'false';
 		$('#downloadProject').attr('value', label);
+        $('#previewDropdown').attr('data-download', isDownload);
 	},
 	setProgress: function(stats) {
 		var s = stats;
@@ -1703,8 +1924,8 @@ UI = {
 				toAdd = (op == 'uppercase')? d.toUpperCase() : (op == 'lowercase')? d.toLowerCase() : (op == 'capitalize')? capStr : d;
 				newStr += toAdd;
 			} else {
-				newStr += this.outerHTML;					
-//				newStr += this.innerText;					
+				newStr += this.outerHTML;
+//				newStr += this.innerText;
 			}
 		});
         console.log('x');
@@ -1722,7 +1943,9 @@ UI = {
 	},
 
 	setStatus: function(segment, status) {
-        segment.removeClass("status-draft status-translated status-approved status-rejected status-new").addClass("status-" + status);
+        console.log('setStatus - segment: ', segment);
+        console.log('setStatus - status: ', status);
+		segment.removeClass("status-draft status-translated status-approved status-rejected status-new").addClass("status-" + status);
 	},
 	setStatusButtons: function(button) {
 		isTranslatedButton = ($(button).hasClass('translated')) ? true : false;
@@ -1770,7 +1993,7 @@ UI = {
         if ( !$('#downloadProject').hasClass('disabled') ) {
 
             //disable download button
-            $('#downloadProject').addClass('disabled' ).data( 'oldValue', $('#downloadProject' ).val() ).val('DOWNLOADING...');
+            $('#downloadProject').addClass('disabled' ).data( 'oldValue', $('#downloadProject' ).val() ).val('DOWNLOADING');
 
             //create an iFrame element
             var iFrameDownload = $( document.createElement( 'iframe' ) ).hide().prop({
@@ -1826,7 +2049,7 @@ UI = {
     },
 	/**
 	 * fill segments with relative errors from polling
-	 * 
+	 *
 	 * @param {type} segment
 	 * @param {type} warnings
 	 * @returns {undefined}
@@ -1864,7 +2087,7 @@ UI = {
 	},
 	/**
 	 * Walk Warnings to fill right segment
-	 * 
+	 *
 	 * @returns {undefined}
 	 */
 	fillCurrentSegmentWarnings: function(warningDetails, global) {
@@ -1874,7 +2097,7 @@ UI = {
 //				if ('segment-' + value.id_segment === UI.currentSegment[0].id) {
 //					UI.fillWarnings(UI.currentSegment, $.parseJSON(value.warnings));
 //				}
-//			});			
+//			});
 		} else {
 			UI.fillWarnings(UI.currentSegment, $.parseJSON(warningDetails.warnings));
 		}
@@ -1891,7 +2114,7 @@ UI = {
 					UI.compareArrays(i1, i2);
 					return false;
 				}
-			});						
+			});
 		});
 		return i1;
 	},
@@ -1899,7 +2122,7 @@ UI = {
 		clearTimeout(UI.startWarningTimeout);
 		UI.startWarningTimeout = setTimeout(function() {
 			UI.checkWarnings(false);
-		}, config.warningPollingInterval);		
+		}, config.warningPollingInterval);
 	},
 
 	checkWarnings: function(openingSegment) {
@@ -1934,7 +2157,7 @@ UI = {
 
 					if (openingSegment)
 						UI.fillCurrentSegmentWarnings(data.details, true);
-			
+
 					//switch to css for warning
 					$('#notifbox').attr('class', 'warningbox').attr("title", "Click to see the segments with potential issues").find('.numbererror').text(UI.globalWarnings.length);
 
@@ -1944,7 +2167,7 @@ UI = {
 					//reset the pointer to offending segment
 					$('#point2seg').attr('href', '#');
 				}
-				
+
 				// check for messages
 				if(typeof data.messages != 'undefined') {
 					var msgArray = $.parseJSON(data.messages);
@@ -2050,30 +2273,116 @@ UI = {
 		}, 'local');
 	},
 
-    setTranslation: function(id_segment, status, caller) {
+    setTranslation: function(id_segment, status, caller, callback) {
+//        console.log('setTranslation');
 //        console.log('id_segment: ', id_segment);
 //        console.log('status: ', status);
-//        console.log('setTranslation sul segmento ', UI.currentSegmentId);
+//        console.log('caller: ', caller);
+        // add to setTranslation tail
+        alreadySet = this.alreadyInSetTranslationTail(id_segment);
+//        console.log('prova: ', '"' + $('#segment-' + id_segment + ' .editarea').text().trim().length + '"');
+        emptyTranslation = ($('#segment-' + id_segment + ' .editarea').text().trim().length)? false : true;
+        toSave = ((!alreadySet)&&(!emptyTranslation));
+//        console.log('alreadySet: ', alreadySet);
+//        console.log('emptyTranslation: ', emptyTranslation);
+//        console.log('toSave: ', toSave);
 
-		reqArguments = arguments;
+        //REMOVED Check for to save
+        //Send ALL to the queue
+        if( toSave ) {
+            this.addToSetTranslationTail( id_segment, status, caller, callback = callback || {} );
+        } else {
+            this.updateToSetTranslationTail( id_segment, status, caller, callback = callback || {} )
+        }
+
+//        console.log('this.alreadyInSetTranslationTail(id_segment): ', this.alreadyInSetTranslationTail(id_segment));
+//        this.addToSetTranslationTail(id_segment, status, caller);
+//        if(UI.setTranslationTail.length) console.log('UI.setTranslationTail 3: ', UI.setTranslationTail.length);
+//        console.log('UI.offline: ', UI.offline);
+//        console.log('config.offlineModeEnabled: ', config.offlineModeEnabled);
+
+        if ( this.offline && config.offlineModeEnabled ) {
+
+            if ( toSave ) {
+                this.decrementOfflineCacheRemaining();
+                this.failedConnection( [ id_segment, status, false ], 'setTranslation' );
+            }
+
+            this.changeStatusOffline( id_segment );
+            this.checkConnection( 'Set Translation check Authorized' );
+
+        } else {
+//            console.log('this.executingSetTranslation: ', this.executingSetTranslation);
+            if ( !this.executingSetTranslation ) this.execSetTranslationTail();
+        }
+    },
+    alreadyInSetTranslationTail: function (sid) {
+//        console.log('qqqq');
+//        console.log('UI.setTranslationTail.length: ', UI.setTranslationTail.length);
+        alreadySet = false;
+        $.each(UI.setTranslationTail, function (index) {
+            if(this.id_segment == sid) alreadySet = true;
+        });
+        return alreadySet;
+    },
+
+    changeStatusOffline: function (sid) {
+        if($('#segment-' + sid + ' .editarea').text() != '') {
+            $('#segment-' + sid).removeClass('status-draft status-approved status-new status-rejected').addClass('status-translated');
+        }
+    },
+    addToSetTranslationTail: function (id_segment, status, caller, callback) {
+//        console.log('addToSetTranslationTail ' + id_segment);
+        $('#segment-' + id_segment).addClass('setTranslationPending');
+        var item = {
+            id_segment: id_segment,
+            status: status,
+            caller: caller,
+            callback: callback
+        }
+        this.setTranslationTail.push(item);
+    },
+    updateToSetTranslationTail: function (id_segment, status, caller, callback) {
+//        console.log('addToSetTranslationTail ' + id_segment);
+        $('#segment-' + id_segment).addClass('setTranslationPending');
+        var item = {
+            id_segment: id_segment,
+            status: status,
+            caller: caller,
+            callback: callback
+        }
+        $.each( UI.setTranslationTail, function (index) {
+            if( this.id_segment == id_segment ) {
+                this.status   = status;
+                this.caller   = caller;
+                this.callback = callback;
+            }
+        });
+    },
+    execSetTranslationTail: function ( callback_to_execute ) {
+//        console.log('execSetTranslationTail');
+        if(UI.setTranslationTail.length) {
+            item = UI.setTranslationTail[0];
+            UI.setTranslationTail.shift(); // to move on ajax callback
+            UI.execSetTranslation( item.id_segment, item.status, item.caller, item.callback );
+        }
+    },
+
+    execSetTranslation: function( id_segment, status, caller, callback ) {
+//        console.log('execSetTranslation');
+        this.executingSetTranslation = true;
+        reqArguments = arguments;
 		segment = $('#segment-' + id_segment);
-        //       this.setStatus(segment, status);
-
-//        UI.testSetTranslation_success(segment, status, reqArguments[3]);
-
-        this.lastTranslatedSegmentId = id_segment;
-//        $('#segment-' + this.lastOpenedSegmentId).removeClass('loaded');
-
-        caller = (typeof caller == 'undefined') ? false : caller;
+		this.lastTranslatedSegmentId = id_segment;
+		caller = (typeof caller == 'undefined') ? false : caller;
 		var file = $(segment).parents('article');
 
 		// Attention, to be modified when we will lock tags
 		if( config.brPlaceholdEnabled ) {
 			translation = this.postProcessEditarea(segment);
 		} else {
-			translation = $('.editarea', segment ).text();
+            translation = $('.editarea', segment ).text();
 		}
-//        console.log('translation: ', translation);
 
 		if (translation === '') {
             this.unsavedSegmentsToRecover.push(this.currentSegmentId);
@@ -2083,7 +2392,7 @@ UI = {
 		var id_translator = config.id_translator;
 		var errors = '';
 		errors = this.collectSegmentErrors(segment);
-		var chosen_suggestion = $('.editarea', segment).data('lastChosenSuggestion'); 
+		var chosen_suggestion = $('.editarea', segment).data('lastChosenSuggestion');
 //		if(caller != 'replace') {
 //			if(this.body.hasClass('searchActive')) {
 //				console.log('aaa');
@@ -2096,8 +2405,14 @@ UI = {
 //			}
 //		}
 		autosave = (caller == 'autosave') ? true : false;
+        isSplitted = (id_segment.split('-').length > 1) ? true : false;
+        if(isSplitted) translation = this.collectSplittedTranslations(id_segment);
+//        console.log('isSplitted: ', isSplitted);
+//        sidToSend = (isSplitted)? id_segment.split('-')[0] : id_segment;
         this.tempReqArguments = {
+//            id_segment: sidToSend,
             id_segment: id_segment,
+//            id_segment: id_segment.split('-')[0],
             id_job: config.job_id,
             id_first_file: file.attr('id').split('-')[1],
             password: config.password,
@@ -2107,11 +2422,19 @@ UI = {
             id_translator: id_translator,
             errors: errors,
             chosen_suggestion_index: chosen_suggestion,
-            autosave: autosave
+            autosave: autosave,
+            version: segment.attr('data-version')
         };
+        if(isSplitted) {
+            this.tempReqArguments.splitStatuses = this.collectSplittedStatuses(id_segment).toString();
+//            console.log('aaa: ' + id_segment);
+//            console.log('bbb: ' , segment);
+            this.setStatus($('#segment-' + id_segment), 'translated');
+        }
         reqData = this.tempReqArguments;
         reqData.action = 'setTranslation';
         this.log('setTranslation', reqData);
+        segment = $('#segment-' + id_segment);
 
 		APP.doRequest({
             data: reqData,
@@ -2133,19 +2456,109 @@ UI = {
 */
 			context: [reqArguments, segment, status],
 			error: function() {
-				UI.failedConnection(this[0], 'setTranslation');
-			},
+                UI.addToSetTranslationTail(this[0][0], this[0][1], this[0][2]);
+                UI.changeStatusOffline(this[0][0]);
+                UI.failedConnection(this[0], 'setTranslation');
+                UI.decrementOfflineCacheRemaining();
+            },
 			success: function(d) {
+//                console.log('this: ', this);
+//                console.log('execSetTranslation success');
+                UI.executingSetTranslation = false;
+                UI.execSetTranslationTail();
 				UI.setTranslation_success(d, this[1], this[2], this[0][3]);
 			}
 		});
+
+        if( typeof( callback ) === "function" ) {
+            callback.call();
+        }
+
 	},
+    collectSplittedStatuses: function (sid) {
+        statuses = [];
+        segmentsIds = $('#segment-' + sid).attr('data-split-group').split(',');
+        $.each(segmentsIds, function (index) {
+            segment = $('#segment-' + this);
+            status = (this == sid)? 'translated' : UI.getStatus(segment);
+            statuses.push(status);
+        });
+        return statuses;
+    },
+    collectSplittedTranslations: function (sid) {
+        totalTranslation = '';
+        segmentsIds = $('#segment-' + sid).attr('data-split-group').split(',');
+        $.each(segmentsIds, function (index) {
+            segment = $('#segment-' + this);
+            translation = UI.postProcessEditarea(segment);
+            totalTranslation += translation;
+//            totalTranslation += $(segment).find('.editarea').html();
+            if(index < (segmentsIds.length - 1)) totalTranslation += UI.splittedTranslationPlaceholder;
+        });
+        return totalTranslation;
+    },
+
+    /**
+     * @deprecated
+     */
     checkPendingOperations: function() {
         if(this.checkInStorage('pending')) {
             UI.execAbortedOperations();
         }
     },
-	checkInStorage: function(what) {
+    addInStorage: function (key, val, operation) {
+        if(this.isPrivateSafari) {
+            item = {
+                key: key,
+                value: val
+            }
+            this.localStorageArray.push(item);
+        } else {
+            try {
+                localStorage.setItem(key, val);
+            } catch (e) {
+                UI.clearStorage(operation);
+                localStorage.setItem(key, val);
+            }
+        }
+    },
+    getFromStorage: function (key) {
+        if(this.isPrivateSafari) {
+            foundVal = 0;
+            $.each(this.localStorageArray, function (index) {
+                if(this.key == key) foundVal = this.value;
+            });
+            return foundVal || false;
+        } else {
+            return localStorage.getItem(key);
+        }
+    },
+    removeFromStorage: function (key) {
+        if(this.isPrivateSafari) {
+            foundVal = 0;
+            $.each(this.localStorageArray, function (index) {
+                if(this.key == key) foundIndex = index;
+            });
+            this.localStorageArray.splice(foundIndex, 1);
+        } else {
+            localStorage.removeItem(key);
+        }
+    },
+
+
+    isLocalStorageNameSupported: function () {
+        var testKey = 'test', storage = window.sessionStorage;
+        try {
+            storage.setItem(testKey, '1');
+            storage.removeItem(testKey);
+            return true;
+        } catch (error) {
+            return false;
+        }
+    },
+
+
+    checkInStorage: function(what) {
 		var found = false;
 		$.each(localStorage, function(k) {
 			if(k.substring(0, what.length) === what) {
@@ -2388,7 +2801,8 @@ UI = {
         };
 //        console.log('prova: ', prova);
 //        console.log('logValue: ', JSON.stringify(logValue));
-        localStorage.setItem('log-' + operation + '-' + dd.getTime(), JSON.stringify(logValue));
+        UI.addInStorage('log-' + operation + '-' + dd.getTime(), JSON.stringify(logValue), 'log');
+//        localStorage.setItem('log-' + operation + '-' + dd.getTime(), JSON.stringify(logValue));
 
 /*
         console.log('dopo errore');
@@ -2400,6 +2814,7 @@ UI = {
 
     },
     extractLogs: function() {
+        if(this.isPrivateSafari) return;
         var pendingLogs = [];
         inp = 'log';
         $.each(localStorage, function(k,v) {
@@ -2537,20 +2952,20 @@ UI = {
 			} else {
 				match = this.outerHTML.match(/<.*?>/gi);
 				if(match.length == 1) { // se è 1 solo, è un tag inline
-					
+
 				} else if(match.length == 2) { // se sono due, non ci sono tag innestati
 					newStr += htmlEncode(match[0]) + this.innerHTML.replace(/\s/gi, '#@-lt-@#span#@-space-@#class="space-marker#@-space-@#marker#@-space-@#monad"#@-space-@#contenteditable="false"#@-gt-@# #@-lt-@#/span#@-gt-@#') + htmlEncode(match[1]);
 //					newStr += htmlEncode(match[0]) + this.innerHTML.replace(/\s/gi, '#@-lt-@#span class="space-marker" contenteditable="false"#@-gt-@#.#@-lt-@#/span#@-gt-@#') + htmlEncode(match[1]);
 				} else {
 
 					newStr += htmlEncode(match[0]) + UI.encodeSpacesAsPlaceholders(this.innerHTML) + htmlEncode(match[1], false);
-					
+
 //					newStr += htmlEncode(match[0]) + UI.prova(this.innerHTML.replace(/\s/gi, '#@-lt-@#span#@-space-@#class="space-marker"#@-space-@#contenteditable="false"#@-gt-@#.#@-lt-@#/span#@-gt-@#')) + htmlEncode(match[1], false);
-					
-//					newStr += htmlEncode(match[0]) + UI.prova(this.innerHTML.replace(/\s/gi, '#@-lt-@#span class="space-marker" contenteditable="false"#@-gt-@#.#@-lt-@#/span#@-gt-@#')) + htmlEncode(match[1], false);					
+
+//					newStr += htmlEncode(match[0]) + UI.prova(this.innerHTML.replace(/\s/gi, '#@-lt-@#span class="space-marker" contenteditable="false"#@-gt-@#.#@-lt-@#/span#@-gt-@#')) + htmlEncode(match[1], false);
 				}
-				
-				
+
+
 				// se sono più di due, ci sono tag innestati
 			}
 		});
@@ -2569,7 +2984,7 @@ UI = {
 				match = this.outerHTML.match(/<.*?>/gi);
 				console.log('match: ', match);
 				if(match.length == 1) { // se è 1 solo, è un tag inline
-					
+
 				} else if(match.length == 2) { // se sono due, non ci sono tag innestati
 					newStr += htmlEncode(match[0]) + this.innerHTML.replace(/\s/gi, '#@-lt-@#span#@-space-@#class="space-marker"#@-space-@#contenteditable="false"#@-gt-@#.#@-lt-@#/span#@-gt-@#') + htmlEncode(match[1]);
 //					newStr += htmlEncode(match[0]) + this.innerHTML.replace(/\s/gi, '#@-lt-@#span class="space-marker" contenteditable="false"#@-gt-@#.#@-lt-@#/span#@-gt-@#') + htmlEncode(match[1]);
@@ -2577,13 +2992,13 @@ UI = {
 					console.log('vediamo: ', $.parseHTML(this.outerHTML));
 
 					newStr += htmlEncode(match[0]) + UI.prova(this.innerHTML) + htmlEncode(match[1], false);
-					
+
 //					newStr += htmlEncode(match[0]) + UI.prova(this.innerHTML.replace(/\s/gi, '#@-lt-@#span#@-space-@#class="space-marker"#@-space-@#contenteditable="false"#@-gt-@#.#@-lt-@#/span#@-gt-@#')) + htmlEncode(match[1], false);
-					
-//					newStr += htmlEncode(match[0]) + UI.prova(this.innerHTML.replace(/\s/gi, '#@-lt-@#span class="space-marker" contenteditable="false"#@-gt-@#.#@-lt-@#/span#@-gt-@#')) + htmlEncode(match[1], false);					
+
+//					newStr += htmlEncode(match[0]) + UI.prova(this.innerHTML.replace(/\s/gi, '#@-lt-@#span class="space-marker" contenteditable="false"#@-gt-@#.#@-lt-@#/span#@-gt-@#')) + htmlEncode(match[1], false);
 				}
-				
-				
+
+
 				// se sono più di due, ci sono tag innestati
 			}
 		});
@@ -2615,17 +3030,23 @@ UI = {
 			if (this.code == '-10' && operation != 'getSegments' ) {
 //				APP.alert("Job canceled or assigned to another translator");
 				APP.alert({
-					msg: 'Job canceled or assigned to another translator', 
-					callback: 'reloadPage' 
-				});		
+					msg: 'Job canceled or assigned to another translator',
+					callback: 'reloadPage'
+				});
 				//FIXME
 				// This Alert, will be NEVER displayed because are no-blocking
 				// Transform location.reload(); to a callable function passed as callback to alert
 			}
 			if (this.code == '-1000') {
 				console.log('ERROR -1000');
-				UI.failedConnection(0, 'no');
+				console.log('operation: ', operation);
+                UI.blockUIForNoConnection();
+//				UI.failedConnection(0, 'no');
 			}
+            if (this.code == '-101') {
+                console.log('ERROR -101');
+                UI.blockUIForNoConnection();
+            }
 		});
 	},
 	reloadPage: function() {
@@ -2643,26 +3064,23 @@ UI = {
 		$('#contextMenu .shortcut .alt').html(alt);
 		$('#contextMenu .shortcut .cmd').html(cmd);
 	},
-    testSetTranslation_success: function (segment, status, byStatus) {
-        this.setStatus(segment, status);
-//        this.setDownloadStatus(d.stats);
-//        this.setProgress(d.stats);
-        //check status of global warnings
-        this.checkWarnings(false);
-        if(!byStatus) {
-            this.beforePropagateTranslation(segment, status);
-        }
-    },
-
-    setTranslation_success: function(d, segment, status, byStatus) {
+	setTranslation_success: function(d, segment, status, byStatus) {
 		if (d.errors.length)
 			this.processErrors(d.errors, 'setTranslation');
 		if (d.data == 'OK') {
+            console.log('setTranslation_success - segment: ', segment);
 			this.setStatus(segment, status);
-            this.setDownloadStatus(d.stats);
+			this.setDownloadStatus(d.stats);
 			this.setProgress(d.stats);
+
+            //if this was in pending state remove
+            $( segment ).removeClass( 'setTranslationPending' );
+
 			//check status of global warnings
 			this.checkWarnings(false);
+            $(segment).attr('data-version', d.version);
+        //    $(segment).removeClass('setTranslationPending');
+
             if(!byStatus) {
                 this.beforePropagateTranslation(segment, status);
             }
@@ -2697,7 +3115,7 @@ UI = {
 
     beforePropagateTranslation: function(segment, status) {
 //        console.log('before propagate');
-
+        if($(segment).attr('id').split('-').length > 2) return false;
         UI.propagateTranslation(segment, status, false);
 /*
         return false;
@@ -2863,7 +3281,7 @@ UI = {
 
 	/*
 	 // for future implementation
-	 
+
 	 getSegmentComments: function(segment) {
 	 var id_segment = $(segment).attr('id').split('-')[1];
 	 var id_translator = config.id_translator;
@@ -2885,7 +3303,7 @@ UI = {
 	 }
 	 });
 	 },
-	 
+
 	 addSegmentComment: function(segment) {
 	 var id_segment = $(segment).attr('id').split('-')[1];
 	 var id_translator = config.id_translator;
@@ -2922,10 +3340,10 @@ UI = {
 //        }, 200);
 	},
 	browserScrollPositionRestoreCorrection: function() {
-		// detect if the scroll is a browser generated scroll position restore, and if this is the case rescroll to the segment 
-		if (this.firstOpenedSegment == 1) { // if the current segment is the first opened in the current UI  
-			if (!$('.editor').isOnScreen()) { // if the current segment is out of the current viewport 
-				if (this.autoscrollCorrectionEnabled) { // if this is the first correction and we are in the initial 2 seconds since page init 
+		// detect if the scroll is a browser generated scroll position restore, and if this is the case rescroll to the segment
+		if (this.firstOpenedSegment == 1) { // if the current segment is the first opened in the current UI
+			if (!$('.editor').isOnScreen()) { // if the current segment is out of the current viewport
+				if (this.autoscrollCorrectionEnabled) { // if this is the first correction and we are in the initial 2 seconds since page init
 					this.scrollSegment(this.currentSegment);
 					this.autoscrollCorrectionEnabled = false;
 				}
@@ -2941,6 +3359,7 @@ UI = {
 			ind = this.undoStack.length - 1 - this.undoStackPosition - 1;
 
 		this.editarea.html(this.undoStack[ind]);
+        console.log('vediamo: ', document.getElementsByClassName("undoCursorPlaceholder")[0]);
 		setCursorPosition(document.getElementsByClassName("undoCursorPlaceholder")[0]);
 		$('.undoCursorPlaceholder').remove();
 
@@ -2966,21 +3385,23 @@ UI = {
 		if (typeof currentItem != 'undefined') {
 			if (currentItem.trim() == this.editarea.html().trim())
 				return;
-		}
+		} else {
+//            return;
+        }
+
         if(this.editarea === '') return;
 
 		if (this.editarea.html() === '') return;
 
 		var ss = this.editarea.html().match(/<span.*?contenteditable\="false".*?\>/gi);
 		var tt = this.editarea.html().match(/&lt;/gi);
-		if (tt) {
-			if ((tt.length) && (!ss))
-				return;
-		}
-
-		var diff = (typeof currentItem != 'undefined') ? this.dmp.diff_main(currentItem, this.editarea.html())[1][1] : 'null';
-		if (diff == ' selected')
-			return;
+        if ( tt ) {
+            if ( (tt.length) && (!ss) )
+                return;
+        }
+        var diff = ( typeof currentItem == 'undefined') ? 'null' : this.dmp.diff_main( currentItem, this.editarea.html() )[1][1];
+        if ( diff == ' selected' )
+            return;
 
 		var pos = this.undoStackPosition;
 		if (pos > 0) {
@@ -2989,7 +3410,13 @@ UI = {
 		}
 		saveSelection();
 		$('.undoCursorPlaceholder').remove();
-		$('.rangySelectionBoundary').after('<span class="undoCursorPlaceholder monad" contenteditable="false"></span>');
+/*
+        console.log('rangySelectionBoundary: ', $('.rangySelectionBoundary'));
+        console.log('rangySelectionBoundary.next(): ', $('.rangySelectionBoundary').next());
+        console.log('rangySelectionBoundary.next() non è una section: ', !$('.rangySelectionBoundary').next().is('.section'));
+        if(!$('.rangySelectionBoundary').next().is('.section')) $('.rangySelectionBoundary').after('<span class="undoCursorPlaceholder monad" contenteditable="false"></span>');
+*/
+        $('.rangySelectionBoundary').after('<span class="undoCursorPlaceholder monad" contenteditable="false"></span>');
 		restoreSelection();
 		this.undoStack.push(this.editarea.html().replace(/(<.*?)\s?selected\s?(.*?\>)/gi, '$1$2'));
 	},
@@ -3082,7 +3509,7 @@ $(window).resize(function() {
 $.extend(UI, {
 	init: function() {
 		this.initStart = new Date();
-		this.version = "0.5.1";
+		this.version = "0.5.5";
 		if (this.debug)
 			console.log('Render time: ' + (this.initStart - renderStart));
 		this.numContributionMatchesResults = 3;
@@ -3115,10 +3542,8 @@ $.extend(UI, {
 		this.savedSelActiveElement = null;
 		this.firstOpenedSegment = false;
 		this.autoscrollCorrectionEnabled = true;
-		this.autoFailoverEnabled = false;
 //        this.offlineModeEnabled = false;
         this.offline = false;
-//        if(this.offlineModeEnabled) this.autoFailoverEnabled
         this.searchEnabled = true;
 		if (this.searchEnabled)
             $('#filterSwitch').show( 100, function(){ APP.fitText( $('.breadcrumbs'), $('#pname'), 30) } );
@@ -3144,6 +3569,14 @@ $.extend(UI, {
         this.unsavedSegmentsToRecover = [];
         this.recoverUnsavedSegmentsTimer = false;
         this.savingMemoryErrorNotificationEnabled = false;
+        this.setTranslationTail = [];
+        this.setContributionTail = [];
+        this.executingSetTranslation = false;
+        this.executingSetContribution = false;
+        this.executingSetContributionMT = false;
+        this.localStorageArray = [];
+        this.isPrivateSafari = (this.isSafari) && (!this.isLocalStorageNameSupported());
+
         if(config.isAnonymousUser) this.body.addClass('isAnonymous');
 
 		/**
@@ -3868,14 +4301,19 @@ $.extend(UI, {
 			location.reload(true);
 		}).on('click', '.tag-autocomplete li', function(e) {
 			e.preventDefault();
-//			UI.editarea.html(UI.editarea.html().replace(/&lt;[&;"\w\s\/=]*?(\<span class="tag-autocomplete-endcursor"\>)/gi, '$1'));
-//			UI.editarea.html(UI.editarea.html().replace(/&lt;(?:[a-z]*&nbsp;*(["\w\s\/=]*?))?(\<span class="tag-autocomplete-endcursor"\>)/gi, '$2'));
+
+            UI.editarea.html(UI.editarea.html().replace(/<span class="tag-autocomplete-endcursor"><\/span>&lt;/gi, '&lt;<span class="tag-autocomplete-endcursor"></span>'));
 
             UI.editarea.find('.rangySelectionBoundary').before(UI.editarea.find('.rangySelectionBoundary + .tag-autocomplete-endcursor'));
+
             UI.editarea.html(UI.editarea.html().replace(/&lt;(?:[a-z]*(?:&nbsp;)*["<\->\w\s\/=]*)?(<span class="tag-autocomplete-endcursor">)/gi, '$1'));
+
             UI.editarea.html(UI.editarea.html().replace(/&lt;(?:[a-z]*(?:&nbsp;)*["\w\s\/=]*)?(<span class="tag-autocomplete-endcursor"\>)/gi, '$1'));
+
             UI.editarea.html(UI.editarea.html().replace(/&lt;(?:[a-z]*(?:&nbsp;)*["\w\s\/=]*)?(<span class="undoCursorPlaceholder monad" contenteditable="false"><\/span><span class="tag-autocomplete-endcursor"\>)/gi, '$1'));
+
             UI.editarea.html(UI.editarea.html().replace(/(<span class="tag-autocomplete-endcursor"\><\/span><span class="undoCursorPlaceholder monad" contenteditable="false"><\/span>)&lt;/gi, '$1'));
+
 			saveSelection();
 			if(!$('.rangySelectionBoundary', UI.editarea).length) { // click, not keypress
 //				console.log('qui: ', document.getElementsByClassName("tag-autocomplete-endcursor")[0]);
@@ -4003,16 +4441,11 @@ $.extend(UI, {
                     $('.editor .rangySelectionBoundary.focusOut').remove();
                 }
             }, 600);
-        }).on('offlineON', function(d) {
-            if(!config.offlineModeEnabled) UI.blockUIForNoConnection(d.reqArguments, d.operation);
         });
 //		window.onbeforeunload = goodbye;
 
 		window.onbeforeunload = function(e) {
 			goodbye(e);
-			UI.clearStorage('contribution');
-			
-//			localStorage.clear();
 		};
 
 	
@@ -4146,6 +4579,12 @@ $.extend(UI, {
 		} ).on('click', '#quality-report', function(e){
             var win = window.open( $('#quality-report' ).data('url') , '_self');
             win.focus();
+        }).on('click', '#previewDropdown .downloadTranslation a', function(e) {
+            e.preventDefault();
+            $('#downloadProject').click();
+        }).on('click', '#previewDropdown .previewLink a', function(e) {
+            e.preventDefault();
+            $('.downloadtr-button.draft').click();
         }).on('click', '#downloadProject', function(e) {
             e.preventDefault();
             if( $('#downloadProject').hasClass('disabled') ) return false;
@@ -4162,10 +4601,21 @@ $.extend(UI, {
             } else {
                 UI.continueDownload();
             }
-		}).on('click', '.alert .close', function(e) {
+		}).on('mousedown', '.header-menu .originalDownload, .header-menu .sdlxliff, .header-menu .omegat', function( e ){
+            if( e.which == 1 ){ // left click
+                e.preventDefault();
+                var iFrameDownload = $( document.createElement( 'iframe' ) ).hide().prop( {
+                    id: 'iframeDownload_' + new Date().getTime() + "_" + parseInt( Math.random( 0, 1 ) * 10000000 ),
+                    src: $( e.currentTarget ).attr( 'href' )
+                } );
+                $( "body" ).append( iFrameDownload );
+
+                //console.log( $( e.currentTarget ).attr( 'href' ) );
+            }
+        }).on('click', '.alert .close', function(e) {
 			e.preventDefault();
 			$('.alert').remove();
-		}).on('click', '.downloadtr-button .draft', function() {
+		}).on('click', '.downloadtr-button.draft', function() {
 			if (UI.isChrome) {
 				$('.download-chrome').addClass('d-open');
 				setTimeout(function() {
@@ -4180,7 +4630,7 @@ $.extend(UI, {
 			}
 		}).on('click', '#checkConnection', function(e) {
 			e.preventDefault();
-			UI.checkConnection();
+			UI.checkConnection( 'Click from Human Authorized' );
 		}).on('click', '#statistics .meter a', function(e) {
 			e.preventDefault();
 			UI.gotoNextUntranslatedSegment();
@@ -4220,9 +4670,12 @@ $.extend(UI, {
 			UI.formatSelection('capitalize');
 		}).on('mouseup', '.editToolbar li', function() {
 			restoreSelection();
+        }).on('mousedown', '.editarea', function(e) { //mousedowneditarea
+//            console.log('MOUSEDOWN');
 		}).on('click', '.editarea', function(e, operation, action) { //clickeditarea
             if (typeof operation == 'undefined')
 				operation = 'clicking';
+//            console.log('CLICK');
 //            console.log('operation: ', operation);
 //            console.log('action: ', action);
             UI.saveInUndoStack('click');
@@ -4325,8 +4778,11 @@ $.extend(UI, {
 					return false;
 				}
 				UI.openTagAutocompletePanel();
-//				console.log('Q: ', UI.editarea.html());
-			}
+				console.log('Q: ', UI.editarea.html());
+                setTimeout(function() { // wait for creation
+                    console.log('R: ', UI.editarea.html());
+                }, 200);
+            }
 			if((e.which == 62)&&(UI.taglockEnabled)) { // closing tag sign
 				if($('.tag-autocomplete').length) {
 					e.preventDefault();
@@ -4365,7 +4821,7 @@ $.extend(UI, {
                 }
             }
 		}).on('keydown', '.editor .editarea', function(e) {
-			console.log('keydown: ', UI.editarea.html());
+//			console.log('keydown: ', UI.editarea.html());
 /*
 			var special = event.type !== "keypress" && jQuery.hotkeys.specialKeys[ event.which ];
 			if ((event.metaKey && !event.ctrlKey && special !== "meta") || (event.ctrlKey)) {
@@ -4875,9 +5331,12 @@ $.extend(UI, {
         }).on('blur', '.editor .editarea', function() {
             UI.hideEditToolbar();
 		}).on('click', 'a.translated, a.next-untranslated', function(e) {
+//            console.log('clicking on translated button');
 			var w = ($(this).hasClass('translated')) ? 'translated' : 'next-untranslated';
 			e.preventDefault();
             UI.hideEditToolbar();
+            $('.test-invisible').remove();
+
 
             UI.currentSegment.removeClass('modified');
 			var skipChange = false;
@@ -4903,11 +5362,11 @@ $.extend(UI, {
 					UI.changeStatus(this, 'translated', 0);
 					skipChange = true;
 					$('#' + $(this).attr('data-segmentid') + '-close').click();
-				}
+                }
+
 			}
 			UI.checkHeaviness();
-			if ((UI.blockButtons)&&(!UI.autoFailoverEnabled)) {
- //               console.log('Il segmento ' + UI.currentSegmentId + ' non è stato salvato, deve essere caricato in una coda');
+			if ( UI.blockButtons ) {
 				if (UI.segmentIsLoaded(UI.nextUntranslatedSegmentId) || UI.nextUntranslatedSegmentId === '') {
 //					console.log('segment is already loaded');
 				} else {
@@ -4920,18 +5379,19 @@ $.extend(UI, {
  //               console.log('saltato ', UI.currentSegmentId);
 				return;
 			}
-			UI.blockButtons = true;
+			if(!UI.offline) UI.blockButtons = true;
 
 			UI.unlockTags();
 			UI.setStatusButtons(this);
 
-            if (!skipChange)
+            if (!skipChange) {
                 UI.changeStatus(this, 'translated', 0);
+            }
 
 			if (w == 'translated') {
-				UI.gotoNextSegment();
+                UI.gotoNextSegment();
 			} else {
-				$(".editarea", UI.nextUntranslatedSegment).trigger("click", "translated");
+                $(".editarea", UI.nextUntranslatedSegment).trigger("click", "translated");
 			}
 
 //			UI.markTags();
@@ -4945,7 +5405,9 @@ $.extend(UI, {
 			UI.lockTags(UI.editarea);
 			UI.changeStatusStop = new Date();
 			UI.changeStatusOperations = UI.changeStatusStop - UI.buttonClickStop;
-		}).on('click', 'a.approved', function() {
+//            console.log('l');
+
+        }).on('click', 'a.approved', function() {
 /*
 			UI.setStatusButtons(this);
 			$(".editarea", UI.nextUntranslatedSegment).click();
@@ -5417,6 +5879,7 @@ $.extend(UI, {
 	},
 	copySuggestionInEditarea: function(segment, translation, editarea, match, decode, auto, which) {
 // console.log('translation 1: ', translation);
+//        console.log('copySuggestionInEditarea - editarea: ', editarea);
 		if (typeof (decode) == "undefined") {
 			decode = false;
 		}
@@ -5461,19 +5924,22 @@ $.extend(UI, {
 		var n = (next === 0) ? $(segment) : (next == 1) ? $('#segment-' + this.nextSegmentId) : $('#segment-' + this.nextUntranslatedSegmentId);
 		if ($(n).hasClass('loaded')) {
 //			console.log('hasclass loaded');
-			this.spellCheck();
-			if (next) {
-				this.nextIsLoaded = true;
-			} else {
-				this.currentIsLoaded = true;
-			}
-			if (this.currentIsLoaded)
-				this.blockButtons = false;
-			if (this.currentSegmentId == this.nextUntranslatedSegmentId)
-				this.blockButtons = false;
-			if (!next)
-				this.currentSegmentQA();
-			return false;
+			console.log('qualcosa nella tab matches? ', segment.find('.footer .matches .overflow').text().length);
+            if(segment.find('.footer .matches .overflow').text().length) {
+                this.spellCheck();
+                if (next) {
+                    this.nextIsLoaded = true;
+                } else {
+                    this.currentIsLoaded = true;
+                }
+                if (this.currentIsLoaded)
+                    this.blockButtons = false;
+                if (this.currentSegmentId == this.nextUntranslatedSegmentId)
+                    this.blockButtons = false;
+                if (!next)
+                    this.currentSegmentQA();
+                return false;
+            }
 		}
 
 		if ((!n.length) && (next)) {
@@ -5515,15 +5981,18 @@ $.extend(UI, {
 			},
 			context: $('#' + id),
 			error: function() {
+//                console.log('getContribution error');
 				UI.failedConnection(0, 'getContribution');
 			},
 			success: function(d) {
+//                console.log('getContribution success');
 //				console.log('getContribution from ' + this + ': ', d.data.matches);
 				if (d.errors.length)
 					UI.processErrors(d.errors, 'getContribution');
 				UI.getContribution_success(d, this);
 			},
 			complete: function() {
+//                console.log('getContribution complete');
 				UI.getContribution_complete(n);
 			}
 		});
@@ -5533,7 +6002,18 @@ $.extend(UI, {
 	},
 	getContribution_success: function(d, segment) {
 //		console.log(d.data.matches);
-		localStorage.setItem('contribution-' + config.job_id + '-' + $(segment).attr('id').split('-')[1], JSON.stringify(d));
+        this.addInStorage('contribution-' + config.job_id + '-' + UI.getSegmentId(segment), JSON.stringify(d), 'contribution');
+/*
+        try {
+            localStorage.setItem('contribution-' + config.job_id + '-' + UI.getSegmentId(segment), JSON.stringify(d));
+        } catch (e) {
+            UI.clearStorage('contribution');
+            localStorage.setItem('contribution-' + config.job_id + '-' + UI.getSegmentId(segment), JSON.stringify(d));
+        }
+*/
+//        localStorage.setItem('contribution-' + config.job_id + '-' + UI.getSegmentId(segment), JSON.stringify(d));
+
+//		localStorage.setItem('contribution-' + config.job_id + '-' + $(segment).attr('id').split('-')[1], JSON.stringify(d));
 //		console.log(localStorage.getItem($(segment).attr('id').split('-')[1]));
 //		console.log(localStorage.getItem('4679214'));
 //		console.log(!localStorage.getItem('4679214'));
@@ -5541,8 +6021,9 @@ $.extend(UI, {
 		this.processContributions(d, segment);
 	},
 	processContributions: function(d, segment) {
+        if(!d) return true;
 		this.renderContributions(d, segment);
-		if ($(segment).attr('id').split('-')[1] == UI.currentSegmentId)
+		if (this.getSegmentId(segment) == UI.currentSegmentId)
 			this.currentSegmentQA();
 		this.lockTags(this.editarea);
 		this.spellCheck();
@@ -5554,15 +6035,16 @@ $.extend(UI, {
 			$('.submenu li.matches a span', segment).text('(' + d.data.matches.length + ')');
 		} else {
 			$(".sbm > .matches", segment).hide();
-		}		
-	},
+		}
+
+    },
 	renderContributions: function(d, segment) {
+        if(!d) return true;
 		var isActiveSegment = $(segment).hasClass('editor');
 		var editarea = $('.editarea', segment);
-//        console.log(d.data.matches.length);
 
 
-		if (d.data.matches.length) {
+		if(d.data.matches.length) {
 			var editareaLength = editarea.text().trim().length;
 			if (isActiveSegment) {
 				editarea.removeClass("indent");
@@ -5648,7 +6130,9 @@ $.extend(UI, {
 
 			UI.setDeleteSuggestion(segment);
 			UI.lockTags();
-//            UI.setContributionSourceDiff();
+            UI.setContributionSourceDiff();
+
+//            UI.setContributionSourceDiff_Old();
 			if (editareaLength === 0) {
 //				console.log('translation AA: ', translation);
 //				translation = UI.decodePlaceholdersToText(translation, true, segment_id, 'translation');
@@ -5682,12 +6166,46 @@ $.extend(UI, {
 		}
 	},
 	setContribution: function(segment_id, status, byStatus) {
+//        console.log('setContribution');
+        this.addToSetContributionTail('setContribution', segment_id, status, byStatus);
+        if(!this.offline) {
+            if( (!this.executingSetContribution) && (!this.executingSetContributionMT) ) this.execSetContributionTail();
+        }
+    },
+    addToSetContributionTail: function (operation, segment_id, status, byStatus) {
+//        console.log('addToSetContributionTail');
+        var item = {
+            operation: operation,
+            segment_id: segment_id,
+            status: status,
+            byStatus: byStatus
+        }
+        this.setContributionTail.push(item);
+    },
+    execSetContributionTail: function () {
+//        console.log('execSetContributionTail');
+
+        if ( UI.setContributionTail.length ) {
+            item = UI.setContributionTail[0];
+            UI.setContributionTail.shift();
+            if ( item.operation == 'setContribution' ) {
+                UI.execSetContribution( item.segment_id, item.status, item.byStatus );
+            } else {
+                UI.execSetContributionMT( item.segment_id, item.status, item.byStatus );
+            }
+        }
+
+    },
+
+    execSetContribution: function(segment_id, status, byStatus) {
+//        console.log('execSetContribution');
+        this.executingSetContribution = true;
         logData = {
             segment_id: segment_id,
             status: status,
             byStatus: byStatus
         };
-        this.log('setContribution1', reqData);
+        this.log('setContribution1', logData);
 		segment = $('#segment-' + segment_id);
 		if ((status == 'draft') || (status == 'rejected'))
 			return false;
@@ -5712,9 +6230,9 @@ $.extend(UI, {
             this.log('setContribution6', {});
 			return false;
 		}
-		this.updateContribution(source, target);
+		this.updateContribution(source, target, segment_id, status, byStatus);
 	},
-	updateContribution: function(source, target) {
+	updateContribution: function(source, target, segment_id, status, byStatus) {
 		reqArguments = arguments;
 		source = view2rawxliff(source);
 		target = view2rawxliff(target);
@@ -5740,15 +6258,30 @@ $.extend(UI, {
 			},
 			context: reqArguments,
 			error: function() {
+                UI.addToSetContributionTail('setContribution', $(this)[2], $(this)[3], $(this)[4]);
 				UI.failedConnection(this, 'updateContribution');
 			},
 			success: function(d) {
+                console.log('execSetContribution success');
+                UI.executingSetContribution = false;
+                UI.removeFromStorage('contribution-' + config.job_id + '-' + segment_id );
+//                localStorage.removeItem('contribution-' + config.job_id + '-' + segment_id );
+                UI.execSetContributionTail();
 				if (d.errors.length)
-					UI.processErrors(d.errors, 'setContribution');
+					UI.processErrors(d.error, 'setContribution');
 			}
 		});
 	},
-	setContributionMT: function(segment_id, status, byStatus) {
+    setContributionMT: function(segment_id, status, byStatus) {
+        console.log('setContribution');
+        this.addToSetContributionTail('setContributionMT', segment_id, status, byStatus);
+        if(!this.offline) {
+            if( (!this.executingSetContribution) && (!this.executingSetContributionMT) ) this.execSetContributionTail();
+        }
+    },
+    execSetContributionMT: function(segment_id, status, byStatus) {
+        console.log('execSetContribution');
+        this.executingSetContributionMT = true;
 		segment = $('#segment-' + segment_id);
 		reqArguments = arguments;
 		if ((status == 'draft') || (status == 'rejected'))
@@ -5771,7 +6304,11 @@ $.extend(UI, {
 		if (target === '') {
 			return false;
 		}
-		target = view2rawxliff(target);
+        this.updateContributionMT(source, target, segment_id, status, byStatus);
+    },
+    updateContributionMT: function (source, target, segment_id, status, byStatus) {
+        reqArguments = arguments;
+        target = view2rawxliff(target);
 //		var languages = $(segment).parents('article').find('.languages');
 //		var source_lang = $('.source-lang', languages).text();
 //		var target_lang = $('.target-lang', languages).text();
@@ -5800,11 +6337,15 @@ $.extend(UI, {
 			},
 			context: reqArguments,
 			error: function() {
+                UI.addToSetContributionTail('setContributionMT', $(this)[2], $(this)[3], $(this)[4]);
 				UI.failedConnection(this, 'setContributionMT');
 			},
 			success: function(d) {
+                console.log('execSetContributionMT success');
+                UI.executingSetContributionMT = false;
+                UI.execSetContributionTail();
 				if (d.errors.length)
-					UI.processErrors(d.errors, 'setContributionMT');
+					UI.processErrors(d.error, 'setContributionMT');
 			}
 		});
 	},
@@ -5889,7 +6430,38 @@ $.extend(UI, {
 	setChosenSuggestion: function(w) {
 		this.editarea.data('lastChosenSuggestion', w);
 	},
-    setContributionSourceDiff: function (segment) {
+    setContributionSourceDiff: function () {
+        sourceText = '';
+        $.each($.parseHTML($('.editor .source').html()), function (index) {
+            if(this.nodeName == '#text') {
+                sourceText += this.data;
+            } else {
+                sourceText += this.innerText;
+            }
+        });
+ //       console.log('sourceText: ', sourceText);
+        UI.currentSegment.find('.sub-editor.matches ul.suggestion-item').each(function () {
+            percent = parseInt($(this).find('.graysmall-details .percent').text().split('%')[0]);
+            if(percent > 74) {
+                ss = $(this).find('.suggestion_source');
+                suggestionSourceText = '';
+                $.each($.parseHTML($(ss).html()), function (index) {
+                    if(this.nodeName == '#text') {
+                        suggestionSourceText += this.data;
+                    } else {
+                        suggestionSourceText += this.innerText;
+                    }
+                });
+//            console.log('suggestionSourceText: ', suggestionSourceText);
+//            console.log('diff: ', UI.execDiff(sourceText, suggestionSourceText));
+                $(this).find('.suggestion_source').html(UI.dmp.diff_prettyHtml(UI.execDiff(sourceText, suggestionSourceText)));
+            }
+
+
+        });
+    },
+
+    setContributionSourceDiff_Old: function (segment) {
         sourceText = '';
         $.each($.parseHTML($('.editor .source').html()), function (index) {
             if(this.nodeName == '#text') {
@@ -5911,7 +6483,7 @@ $.extend(UI, {
                 }
             });
             console.log('suggestionSourceText: ', suggestionSourceText);
-
+            console.log('diff: ', UI.execDiff(sourceText, suggestionSourceText));
 
 //            console.log('a: ', $('.editor .source').html());
 //            console.log($.parseHTML($('.editor .source').html()));
@@ -6077,11 +6649,10 @@ $.extend(UI, {
             }
         }
 
-
         $(editarea).first().each(function() {
-                   saveSelection();
-                   var tx = $(this).html();
-                   brTx1 = (UI.isFirefox)? "<pl class=\"locked\" contenteditable=\"false\">$1</pl>" : "<pl contenteditable=\"false\" class=\"locked\">$1</pl>";
+            saveSelection();
+            var tx = $(this).html();
+            brTx1 = (UI.isFirefox)? "<pl class=\"locked\" contenteditable=\"false\">$1</pl>" : "<pl contenteditable=\"false\" class=\"locked\">$1</pl>";
                    brTx2 = (UI.isFirefox)? "<span class=\"locked\" contenteditable=\"false\">$1</span>" : "<span contenteditable=\"false\" class=\"locked\">$1</span>";
 //			brTx1 = (UI.isFirefox)? "<pl class=\"locked\" contenteditable=\"true\">$1</pl>" : "<pl contenteditable=\"true\" class=\"locked\">$1</pl>";
 //			brTx2 = (UI.isFirefox)? "<span class=\"locked\" contenteditable=\"true\">$1</span>" : "<span contenteditable=\"true\" class=\"locked\">$1</span>";
@@ -6156,11 +6727,15 @@ $.extend(UI, {
     unlockTags: function() {
 		if (!this.taglockEnabled)
 			return false;
-		this.editarea.html(this.editarea.html().replace(/<span contenteditable=\"false\" class=\"locked\"\>(.*?)<\/span\>/gi, "$1"));
+        this.editarea.html(this.removeLockTagsFromString(this.editarea.html()));
+//		this.editarea.html(this.editarea.html().replace(/<span contenteditable=\"false\" class=\"locked\"\>(.*?)<\/span\>/gi, "$1"));
 //		this.editarea.html(this.editarea.html().replace(/<span contenteditable=\"true\" class=\"locked\"\>(.*?)<\/span\>/gi, "$1"));
 	},
-	
-	// TAG CLEANING
+    removeLockTagsFromString: function (str) {
+        return str.replace(/<span contenteditable=\"false\" class=\"locked\"\>(.*?)<\/span\>/gi, "$1");
+    },
+
+    // TAG CLEANING
 	cleanDroppedTag: function(area, beforeDropHTML) {
  //       if (area == this.editarea) {
 			this.droppingInEditarea = false;
@@ -6356,6 +6931,8 @@ $.extend(UI, {
     },
     checkTagProximity: function () {
 //        return false;
+        if(UI.editarea.html() == '') return false;
+
         selection = window.getSelection();
         if(selection.rangeCount < 1) return false;
         range = selection.getRangeAt(0);
@@ -6396,6 +6973,7 @@ $.extend(UI, {
                 return false;
             };
         });
+
     },
     highlightCorrespondingTags: function (el) {
 //        console.log('highlighting: ', $(el));
@@ -8280,25 +8858,39 @@ function setBrowserHistoryBehavior() {
 }
 
 function goodbye(e) {
-    if ($('#downloadProject').hasClass('disabled') || $( 'tr td a.downloading' ).length || $('.popup-tm td.uploadfile.uploading').length ) {
-		var dont_confirm_leave = 0; //set dont_confirm_leave to 1 when you want the user to be able to leave withou confirmation
-		var leave_message = 'You have a pending operation. Are you sure you want to quit?';
-		if(dont_confirm_leave!==1) {
-			if(!e) e = window.event;
-			//e.cancelBubble is supported by IE - this will kill the bubbling process.
-			e.cancelBubble = true;
-			e.returnValue = leave_message;
-			//e.stopPropagation works in Firefox.
-			if (e.stopPropagation) 
-			{
-				e.stopPropagation();
-				e.preventDefault();
-			}
 
-			//return works for Chrome and Safari
-			return leave_message;
-		}
-	}
+    UI.clearStorage('contribution'); 
+
+    if ( $( '#downloadProject' ).hasClass( 'disabled' ) || $( 'tr td a.downloading' ).length || $( '.popup-tm td.uploadfile.uploading' ).length ) {
+        return say_goodbye( 'You have a pending operation. Are you sure you want to quit?' );
+    }
+
+    if ( UI.offline ) {
+        if(UI.setTranslationTail.length) {
+            return say_goodbye( 'You are working in offline mode. If you proceed to refresh you will lose all the pending translations. Do you want to proceed with the refresh ?' );
+        }
+    }
+
+
+    //set dont_confirm_leave to 1 when you want the user to be able to leave without confirmation
+    function say_goodbye( leave_message ){
+
+        if ( typeof leave_message !== 'undefined' ) {
+            if ( !e ) e = window.event;
+            //e.cancelBubble is supported by IE - this will kill the bubbling process.
+            e.cancelBubble = true;
+            e.returnValue = leave_message;
+            //e.stopPropagation works in Firefox.
+            if ( e.stopPropagation ) {
+                e.stopPropagation();
+                e.preventDefault();
+            }
+            //return works for Chrome and Safari
+            return leave_message;
+        }
+
+    }
+
 }   
 
 $.fn.isOnScreen = function() {
@@ -8338,12 +8930,15 @@ $.fn.countdown = function (callback, duration, message) {
         } else {
             // Clear the countdown interval
             clearInterval(countdown);
+            console.log('container: ', container);
             // And fire the callback passing our container as `this`
-            callback.call(container);   
+            callback.call(container);
         }
     // Run interval every 1000ms (1 second)
     }, 1000);
-    
+
+    return countdown;
+
 };
 
 Object.size = function(obj) {
@@ -8687,11 +9282,8 @@ if(config.enableReview && config.isReview) {
 
 //            APP.alert('This will save the translation in the new db field.<br />Feature under construction');
 
-            APP.doRequest({
-//                data: reqData,
-
-                data: {
-                    action: 'setRevision',
+            var data = {
+                action: 'setRevision',
                     job: config.job_id,
                     jpassword: config.password,
                     segment: sid,
@@ -8701,23 +9293,9 @@ if(config.enableReview && config.isReview) {
                     err_terminology: err_terminology,
                     err_language: err_language,
                     err_style: err_style
-                },
+            };
 
-//                context: [reqArguments, segment, status],
-                error: function() {
-//                    UI.failedConnection(this[0], 'setTranslation');
-                },
-                success: function(d) {
-//                    console.log('d: ', d);
-                    $('#quality-report').attr('data-vote', d.data.overall_quality_class);
-                    // temp
-//                    d.stat_quality = config.stat_quality;
-//                    d.stat_quality[0].found = 2;
-                    //end temp
-//                    UI.populateStatQualityPanel(d.stat_quality);
-                }
-            });
-
+            UI.setRevision( data );
 
         }
 //        if(!((UI.currentSegment.find('.sub-editor.review .error-type input[value=1]').is(':checked'))||(UI.currentSegment.find('.sub-editor.review .error-type input[value=2]').is(':checked')))) console.log('sono tutti none');
@@ -8769,6 +9347,30 @@ if(config.enableReview && config.isReview) {
     });
 
     $.extend(UI, {
+
+        setRevision: function( data ){
+
+            APP.doRequest({
+//                data: reqData,
+
+                data: data,
+
+//                context: [reqArguments, segment, status],
+                error: function() {
+                    //UI.failedConnection( this[0], 'setRevision' );
+                    UI.failedConnection( data, 'setRevision' );
+                },
+                success: function(d) {
+//                    console.log('d: ', d);
+                    $('#quality-report').attr('data-vote', d.data.overall_quality_class);
+                    // temp
+//                    d.stat_quality = config.stat_quality;
+//                    d.stat_quality[0].found = 2;
+                    //end temp
+//                    UI.populateStatQualityPanel(d.stat_quality);
+                }
+            });
+        },
         trackChanges: function (editarea) {
 /*
             console.log('11111: ', $(editarea).text());
@@ -9093,7 +9695,7 @@ $.extend(UI, {
         // script per fare apparire e scomparire la riga con l'upload della tmx
 
 
-        $('body').on('click', 'tr.mine a.canceladdtmx, #inactivetm tr.new .action .addtmxfile', function() {
+        $('body').on('click', 'tr.mine a.canceladdtmx, tr.ownergroup a.canceladdtmx, #inactivetm tr.new .action .addtmxfile', function() {
             $(this).parents('tr').find('.action .addtmx').removeClass('disabled');
             $(this).parents('td.uploadfile').remove();
 
@@ -9176,7 +9778,7 @@ $.extend(UI, {
 //            $(".clicked td.action").append('progressbar');
 
             // script per appendere le tmx fra quelle attive e inattive, preso da qui: https://stackoverflow.com/questions/24355817/move-table-rows-that-are-selected-to-another-table-javscript
-        }).on('click', 'tr.mine .uploadfile .addtmxfile:not(.disabled)', function() {
+        }).on('click', 'tr.mine .uploadfile .addtmxfile:not(.disabled), tr.ownergroup .uploadfile .addtmxfile:not(.disabled)', function() {
             $(this).addClass('disabled');
             $(this).parents('.uploadfile').find('.error').text('').hide();
 
@@ -9193,7 +9795,8 @@ $.extend(UI, {
         }).on('blur', '#activetm td.description .edit-desc', function() {
 //            console.log('blur');
             $(this).removeAttr('contenteditable');
-            if(APP.isCattool) UI.saveTMdata(false);
+            UI.saveTMdata(false);
+//            if(APP.isCattool) UI.saveTMdata(false);
 
 //            $('.popup-tm tr.mine td.description .edit-desc').removeAttr('contenteditable');
 /*
@@ -9206,11 +9809,30 @@ $.extend(UI, {
 */
         }).on('blur', '#inactivetm td.description .edit-desc', function() {
             $(this).removeAttr('contenteditable');
-            if(APP.isCattool) UI.saveTMdescription($(this));
+//            if(APP.isCattool) UI.saveTMdescription($(this));
+            UI.saveTMdescription($(this));
         }).on('keydown', '.mgmt-tm td.description .edit-desc', 'return', function(e) {
+//            console.log('return');
+            if(e.which == 13) {
+                e.preventDefault();
+                $(this).trigger('blur');
+            }
+        }).on('click', '.mgmt-mt td.engine-name .edit-desc', function() {
+            $('.mgmt-mt .edit-desc[contenteditable=true]').blur();
+//            $('#activetm tr.mine td.description .edit-desc:not(.current)').removeAttr('contenteditable');
+//            $(this).removeClass('current');
+            $(this).attr('contenteditable', true);
+        }).on('blur', '.mgmt-mt td.engine-name .edit-desc', function() {
+            $(this).removeAttr('contenteditable');
+//            UI.saveTMdata(false);
+//        }).on('blur', '#inactivetm td.description .edit-desc', function() {
+//            $(this).removeAttr('contenteditable');
+//            if(APP.isCattool) UI.saveTMdescription($(this));
+//            UI.saveTMdescription($(this));
+        }).on('keydown', '.mgmt-mt td.engine-name .edit-desc', 'return', function(e) {
             e.preventDefault();
             $(this).trigger('blur');
-         }).on('click', '#activetm tr.uploadpanel .uploadfile .addtmxfile:not(.disabled)', function() {
+        }).on('click', '#activetm tr.uploadpanel .uploadfile .addtmxfile:not(.disabled)', function() {
             $(this).addClass('disabled');
             UI.execAddTM(this);
 //        }).on('click', '.popup-tm .savebtn', function() {
@@ -9249,7 +9871,7 @@ $.extend(UI, {
             UI.useTM(this);
         }).on('change', '#new-tm-read, #new-tm-write', function() {
             UI.checkTMgrants();
-        }).on('change', 'tr.mine td.uploadfile input[type="file"]', function() {
+        }).on('change', 'tr.mine td.uploadfile input[type="file"], tr.ownergroup td.uploadfile input[type="file"]', function() {
             if(this.files[0].size > config.maxTMXFileSize) {
                 numMb = config.maxTMXFileSize/(1024*1024);
                 APP.alert('File too big.<br/>The maximuxm allowed size is ' + numMb + 'Mb.');
@@ -9407,6 +10029,7 @@ $.extend(UI, {
 
     },
     openLanguageResourcesPanel: function(tab, elToClick) {
+        console.log('openLanguageResourcesPanel');
         tab = tab || 'tm';
         elToClick = elToClick || null;
         $('body').addClass('side-popup');
@@ -9661,7 +10284,16 @@ $.extend(UI, {
         } else {
             $(table).find('tr.uploadpanel .uploadfile').addClass('uploading');
         }
-        var trClass = (existing)? 'mine' : 'uploadpanel';
+        if(existing) {
+            if($(el).parents('tr').hasClass('mine')) {
+                trClass = 'mine';
+            } else {
+                trClass = 'ownergroup';
+            }
+        } else {
+            trClass = 'uploadpanel';
+        }
+//        var trClass = (existing)? 'mine' : 'uploadpanel';
         form = $(table).find('tr.' + trClass + ' .add-TM-Form')[0];
         path = $(el).parents('.uploadfile').find('input[type="file"]').val();
         file = path.split('\\')[path.split('\\').length-1];
@@ -9749,12 +10381,12 @@ $.extend(UI, {
         iframe.setAttribute("height", "0");
         iframe.setAttribute("border", "0");
         iframe.setAttribute("style", "width: 0; height: 0; border: none;");
-
         // Add to document...
         document.body.appendChild(iframe);
 //        form.parentNode.appendChild(iframe);
         window.frames['upload_iframe'].name = "upload_iframe";
         iframeId = document.getElementById(ifId);
+        UI.TMuploadIframeId = iframeId;
 
         // Add event...
         var eventHandler = function () {
@@ -9780,7 +10412,13 @@ $.extend(UI, {
         if (iframeId.addEventListener) iframeId.addEventListener("load", eventHandler, true);
         if (iframeId.attachEvent) iframeId.attachEvent("onload", eventHandler);
         existing = ($(form).hasClass('existing'))? true : false;
-        TMKey = (existing)? $(form).parents('.mine').find('.privatekey').first().text() : $('#new-tm-key').val();
+        if(existing) {
+            TR = $(form).parents('tr');
+            TMKey = TR.find('.privatekey').first().text();
+        } else {
+            TMKey = $('#new-tm-key').val();
+        }
+//        TMKey = (existing)? $(form).parents('.mine').find('.privatekey').first().text() : $('#new-tm-key').val();
 
         // Set properties of form...
         form.setAttribute("target", "upload_iframe");
@@ -9934,7 +10572,7 @@ $.extend(UI, {
                                 $('#activetm tr.uploadpanel .uploadfile').removeClass('uploading');
                             }
 
-
+                            UI.TMuploadIframeId.parentNode.removeChild(UI.TMuploadIframeId);
 //                            APP.showMessage({
 //                                msg: 'Your TM has been correctly uploaded. The private TM key is ' + TMKey + '. Store it somewhere safe to use it again.'
 //                            });
@@ -9986,8 +10624,8 @@ $.extend(UI, {
                 tm: $(this).attr('data-tm'),
                 glos: $(this).attr('data-glos'),
                 owner: $(this).attr('data-owner'),
-                key: $(this).find('.privatekey').text(),
-                name: $(this).find('.description').text(),
+                key: $(this).find('.privatekey').text().trim(), // remove spaces and unwanted chars from string
+                name: $(this).find('.description').text().trim(),
                 r: r,
                 w: w
             }
@@ -10029,7 +10667,8 @@ $.extend(UI, {
             },
             error: function() {
                 console.log('Error saving TM data!!');
-                APP.showMessage({msg: 'There was an error saving your data. Please retry!'});
+//                APP.showMessage({msg: 'There was an error saving your data. Please retry!'});
+                $('.tm-error-message').text('There was an error saving your data. Please retry!').show();
                 $('.popup-tm').removeClass('saving');
 
 //                $('.mgmt-panel-tm .warning-message').text('').hide();
@@ -10244,7 +10883,9 @@ $.extend(UI, {
     },
     deleteTM: function (button) {
         tr = $(button).parents('tr').first();
-        $(tr).remove();
+        $(tr).fadeOut("normal", function() {
+        $(this).remove();
+    });
         APP.doRequest({
             data: {
                 action: 'userKeys',
@@ -10453,251 +11094,602 @@ $.extend(UI, {
 /*
  Component: ui.offline
  */
-if(config.offlineModeEnabled) {
 
-    $(window).on('offlineON', function(d) {
-        UI.offline = true;
-//        numUntranslated = $('section.status-new, section.status-draft');
-        UI.showMessage({
-            msg: 'No connection available. You can still translate in offline mode until you reach the maximum storage size.'})
-    }).on('offlineOFF', function(d) {
-        console.log('offlineOFF');
-        UI.offline = false;
-        UI.showMessage({
-            msg: "Connection is back. We are saving translated segments in the database."})
-        UI.checkConnection();
-    }).on('stillNoConnection', function(d) {
-        setTimeout(function() {
-            UI.checkConnection();
-        }, 30000);
-    })
+UI.offlineCacheSize = 30;
+UI.offlineCacheRemaining = UI.offlineCacheSize;
+UI.checkingConnection = false;
 
-    $.extend(UI, {
-        failover: function(reqArguments, operation) {
-            console.log('test offline failover on ' + operation);
-            /*
-            if(operation != 'getWarning') {
-                var pendingConnection = {
-                    operation: operation,
-                    args: reqArguments
-                };
-//			console.log('pendingConnection: ', pendingConnection);
-                var dd = new Date();
-                if(pendingConnection.args) {
-                    localStorage.setItem('pending-' + dd.getTime(), JSON.stringify(pendingConnection));
-                }
-                if(!UI.checkConnectionTimeout) {
-                    UI.checkConnectionTimeout = setTimeout(function() {
-                        UI.checkConnection();
-                        UI.checkConnectionTimeout = false;
-                    }, 5000);
-                }
-            }
-            */
-        }
-    });
+UI.currentConnectionCountdown = null;
 
-}
-/**
- Component: ui.noconnection
- */
+$.extend(UI, {
+    startOfflineMode: function(){
 
-if(!config.offlineModeEnabled) {
+        if( !UI.offline ){
 
-    $(window).on('offlineON', function(d) {
-
-    })
-
-    $.extend(UI, {
-        failover: function(reqArguments, operation) {
-            console.log('failover on ' + operation);
-            if(operation != 'getWarning') {
-                var pendingConnection = {
-                    operation: operation,
-                    args: reqArguments
-                };
-//			console.log('pendingConnection: ', pendingConnection);
-                var dd = new Date();
-                if(pendingConnection.args) {
-                    localStorage.setItem('pending-' + dd.getTime(), JSON.stringify(pendingConnection));
-                }
-                if(!UI.checkConnectionTimeout) {
-                    UI.checkConnectionTimeout = setTimeout(function() {
-                        UI.checkConnection();
-                        UI.checkConnectionTimeout = false;
-                    }, 5000);
-                }
-            }
-        },
-
-        failedConnection: function(reqArguments, operation) {
-            console.log('failed connection');
-            console.log('UI.offline: ', UI.offline);
-            if(UI.offline) {
-                $(window).trigger('stillNoConnection');
-            } else {
-                $(window).trigger({
-                    type: "offlineON",
-                    reqArguments: reqArguments,
-                    operation: operation
-                });
-            }
-        },
-        blockUIForNoConnection: function (reqArguments, operation) {
-            if(this.autoFailoverEnabled) {
-                this.failover(reqArguments, operation);
-                return false;
-            }
-            if(operation != 'getWarning') {
-                var pendingConnection = {
-                    operation: operation,
-                    args: reqArguments
-                };
-                UI.abortedOperations.push(pendingConnection);
-            }
-            if(!config.offlineModeEnabled) {
-                if(!$('.noConnection').length) {
-                    UI.body.append('<div class="noConnection"></div><div class="noConnectionMsg">No connection available.<br /><span class="reconnect">Trying to reconnect in <span class="countdown">30 seconds</span>.</span><br /><br /><input type="button" id="checkConnection" value="Try to reconnect now" /></div>');
-                    $(".noConnectionMsg .countdown").countdown(UI.checkConnection, 30, " seconds");
-                }
-            }
-
-        },
-
-        checkConnection: function() {
-            console.log('check connection');
-            APP.doRequest({
-                data: {
-                    action: 'ajaxUtils',
-                    exec: 'ping'
-                },
-                error: function() {
-                    console.log('error on checking connection');
-                    if(UI.autoFailoverEnabled) {
-                        setTimeout(function() {
-                            UI.checkConnection();
-                        }, 5000);
-                    } else {
-                        if(config.offlineModeEnabled) {
-                            $(window).trigger('stillNoConnection');
-                        } else {
-                            $(".noConnectionMsg .reconnect").html('Still no connection. Trying to reconnect in <span class="countdown">30 seconds</span>.');
-                            $(".noConnectionMsg .countdown").countdown(UI.checkConnection, 30, " seconds");
-                        }
-
-
-                    }
-                },
-                success: function() {
-                    console.log('connection is back');
-                    if(config.offlineModeEnabled) {
-                        $(window).trigger('offlineOFF');
-                    } else {
-                        if(!UI.restoringAbortedOperations) UI.connectionIsBack();
-                    }
-                }
+            UI.offline = true;
+            UI.body.attr('data-offline-mode', 'light-off');
+            UI.showMessage({
+                msg: '<span class="icon-power-cord"></span><span class="icon-power-cord2"></span>No connection available. You can still translate <span class="remainingSegments">' + UI.offlineCacheSize + '</span> segments in offline mode. Do not refresh or you lose the segments!'
             });
-        },
-        connectionIsBack: function() {
-            UI.restoringAbortedOperations = true;
-            this.execAbortedOperations();
-            if(!UI.autoFailoverEnabled) {
-                $('.noConnectionMsg').text('The connection is back. Your last, interrupted operation has now been done.');
+
+            UI.checkingConnection = setInterval( function() {
+                UI.checkConnection( 'Recursive Check authorized' );
+            }, 5000 );
+
+        }
+    },
+    endOfflineMode: function () {
+        if ( UI.offline ) {
+
+            UI.offline = false;
+
+            UI.showMessage( {
+                msg: "Connection is back. We are saving translated segments in the database."
+            } );
+
+            setTimeout( function () {
+                $( '#messageBar .close' ).click();
+            }, 10000 );
+
+            clearInterval( UI.currentConnectionCountdown );
+            clearInterval( UI.checkingConnection );
+            UI.currentConnectionCountdown = null;
+            UI.checkingConnection = false;
+            UI.body.removeAttr( 'data-offline-mode' );
+
+            $('.noConnectionMsg').text( 'The connection is back. Your last, interrupted operation has now been done.' );
+
+            setTimeout(function() {
+                $('.noConnection').addClass('reConnection');
                 setTimeout(function() {
-                    $('.noConnection').addClass('reConnection');
-                    setTimeout(function() {
-                        $('.noConnection, .noConnectionMsg').remove();
-                    }, 500);
-                }, 3000);
-            }
-            UI.restoringAbortedOperations = false;
+                    $('.noConnection, .noConnectionMsg').remove();
+                }, 500);
+            }, 3000);
 
-        },
-        execAbortedOperations: function() {
-            if(UI.autoFailoverEnabled) {
-//			console.log(localStorage);
-                var pendingArray = [];
-                inp = 'pending';
-                $.each(localStorage, function(k,v) {
-                    if(k.substring(0, inp.length) === inp) {
-                        pendingArray.push(JSON.parse(v));
-                    }
-                });
-//			console.log(pendingArray);
-                UI.abortedOperations = pendingArray;
-            }
-//		console.log(UI.abortedOperations);
-            $.each(UI.abortedOperations, function() {
-                args = this.args;
-                operation = this.operation;
-                if(operation == 'setTranslation') {
-                    UI[operation](args[0], args[1], args[2]);
-                } else if(operation == 'updateContribution') {
-                    UI[operation](args[0], args[1]);
-                } else if(operation == 'setContributionMT') {
-                    UI[operation](args[0], args[1], args[2]);
-                } else if(operation == 'setCurrentSegment') {
-                    UI[operation](args[0]);
-                } else if(operation == 'getSegments') {
-                    UI.reloadWarning();
-                }
-            });
-            UI.abortedOperations = [];
-            UI.clearStorage('pending');
+        }
+    },
+    failedConnection: function(reqArguments, operation) {
+
+        UI.startOfflineMode();
+
+        if ( operation != 'getWarning' ) {
+            var pendingConnection = {
+                operation: operation,
+                args: reqArguments
+            };
+            UI.abortedOperations.push( pendingConnection );
         }
 
-    });
+    },
+    activateOfflineCountdown: function ( message ) {
 
-}
+        if ( !$( '.noConnection' ).length ) {
+            UI.body.append( '<div class="noConnection"></div><div class="noConnectionMsg"></div>' );
+        }
+
+        $( '.noConnectionMsg' ).html( '<div class="noConnectionMsg">' + message + '<br /><span class="reconnect">Trying to reconnect in <span class="countdown">30 seconds</span>.</span><br /><br /><input type="button" id="checkConnection" value="Try to reconnect now" /></div>' );
+
+        //clear previous Interval and set a new one
+        UI.currentConnectionCountdown = $( ".noConnectionMsg .countdown" ).countdown( function () {
+            console.log( 'offlineCountdownEnd' );
+            UI.checkConnection( 'Clear countdown authorized' );
+            UI.activateOfflineCountdown( 'Still no connection.' );
+        }, 30, " seconds" );
+
+    },
+    checkConnection: function( message ) {
+
+        console.log(message);
+        console.log('check connection');
+
+        APP.doRequest({
+            data: {
+                action: 'ajaxUtils',
+                exec: 'ping'
+            },
+            error: function() {
+                /**
+                 * do Nothing there are already a thread running
+                 * @see UI.startOfflineMode
+                 * @see UI.endOfflineMode
+                 */
+            },
+            success: function() {
+
+                console.log('check connection success');
+                //check status completed
+                if( !UI.restoringAbortedOperations ) {
+
+                    UI.restoringAbortedOperations = true;
+                    UI.execAbortedOperations( UI.endOfflineMode );
+                    UI.restoringAbortedOperations = false;
+                    UI.executingSetTranslation = false;
+                    UI.execSetTranslationTail();
+                    UI.execSetContributionTail();
+
+                }
+
+            }
+        });
+    },
+
+    /**
+     * NOT USED
+     * @deprecated
+     * @param operation
+     * @param job
+     * @returns {Array|*}
+     */
+    extractLocalStoredItems: function (operation, job) {
+        job = job || false;
+        items = [];
+        $.each(localStorage, function(k,v) {
+            op = k.substring(0, operation.length);
+            if(op === operation) {
+                kAr = k.split('-');
+                if(job) {
+                    if(kAr[1] === job) {
+                        console.log(kAr[1]);
+                        return true;
+                    }
+                }
+                items.push({
+                    'operation': op,
+                    'job': kAr[1],
+                    'sid': kAr[2],
+                    'value': JSON.parse(v)
+                });
+//                    items.push(JSON.parse(v));
+            }
+        });
+        return items;
+
+    },
+    /**
+     * NOT USED
+     * @deprecated
+     *
+     * @param reqArguments
+     * @param operation
+     */
+    failover: function(reqArguments, operation) {
+//            console.log('failover on ' + operation);
+        if(operation != 'getWarning') {
+            var pendingConnection = {
+                operation: operation,
+                args: reqArguments
+            };
+//			console.log('pendingConnection: ', pendingConnection);
+            var dd = new Date();
+            if(pendingConnection.args) {
+                UI.addInStorage('pending-' + dd.getTime(), JSON.stringify(pendingConnection), 'contribution');
+//                localStorage.setItem('pending-' + dd.getTime(), JSON.stringify(pendingConnection));
+            }
+            if(!UI.checkConnectionTimeout) {
+                UI.checkConnectionTimeout = setTimeout(function() {
+                    UI.checkConnection();
+                    UI.checkConnectionTimeout = false;
+                }, 5000);
+            }
+        }
+    },
+    /**
+     * If there are some callback to be executed after the function call pass it as callback
+     *
+     * Note: the function stack is executed when the interpreter exit from the local scope
+     * so, UI[operation] will be executed after the call of callback_to_execute.
+     *
+     * If we put the callback_to_execute out of this scope
+     *      ( calling after the return of this function and not from inside it )
+     *
+     * UI[operation] will be executed before callback_to_execute.
+     * Not working as expected because this behaviour affects "UI.offline = false;"
+     *
+     *
+     * @param callback_to_execute
+     */
+    execAbortedOperations: function( callback_to_execute ) {
+
+        callback_to_execute = callback_to_execute || {};
+
+		//console.log(UI.abortedOperations);
+        $.each(UI.abortedOperations, function() {
+            args = this.args;
+            operation = this.operation;
+            if(operation == 'setTranslation') {
+                UI[operation](args[0], args[1], args[2], UI.incrementOfflineCacheRemaining );
+            } else if(operation == 'updateContribution') {
+                UI[operation](args[0], args[1]);
+            } else if(operation == 'setContributionMT') {
+                UI[operation](args[0], args[1], args[2]);
+            } else if(operation == 'setCurrentSegment') {
+                UI[operation](args[0]);
+            } else if(operation == 'getSegments') {
+                UI.reloadWarning();
+            } else if( operation == 'setRevision' ){
+                UI[operation](args);
+            }
+        });
+        UI.abortedOperations = [];
+
+        callback_to_execute.call();
+
+    },
+    checkOfflineCacheSize: function () {
+        if ( !UI.offlineCacheRemaining ) {
+            UI.activateOfflineCountdown( 'No connection available.' );
+            //console.log( 'la cache è piena, andate in pace' );
+        }
+    },
+    decrementOfflineCacheRemaining: function () {
+        $('#messageBar .remainingSegments').text( --this.offlineCacheRemaining );
+        UI.checkOfflineCacheSize();
+    },
+    incrementOfflineCacheRemaining: function(){
+        // reset counter by 1
+        UI.offlineCacheRemaining += 1;
+        //$('#messageBar .remainingSegments').text( this.offlineCacheRemaining );
+    }
+});
+
+$('html').on('mousedown', 'body[data-offline-mode="light-off"] .editor .actions .split', function(e) {
+    e.preventDefault();
+    APP.alert('Split is disabled in Offline Mode');
+});
+
 /**
  * Component ui.split
  * Created by andreamartines on 11/03/15.
  */
 if(config.splitSegmentEnabled) {
-    $('html').on('mouseover', '.sid', function() {
+    UI.splittedTranslationPlaceholder = '##$_SPLIT$##';
+    $('html').on('mouseover', '.editor .source, .editor .sid', function() {
+        actions = $('.editor .sid').parent().find('.actions');
+        actions.show();
+    }).on('mouseout', '.sid, .editor:not(.split-action) .source, .editor:not(.split-action) .outersource .actions', function() {
+        actions = $('.editor .sid').parent().find('.actions');
+        actions.hide();
+    }).on('click', 'body:not([data-offline-mode]) .outersource .actions .split:not(.cancel)', function(e) {
+        e.preventDefault();
+        segment = $(this).parents('section');
+//        $('.editor .outersource .actions .split').addClass('cancel');
+        $('.editor .split-shortcut').html('CTRL + W');
+        console.log('split');
+        UI.currentSegment.addClass('split-action');
         actions = $(this).parent().find('.actions');
         actions.show();
-    }).on('mouseout', '.sid', function() {
-        actions = $(this).parent().find('.actions');
-        actions.hide();
-    }).on('click', '.sid .actions .split', function(e) {
+        UI.createSplitArea(segment);
+    })
+    /*.on('click', '.outersource .actions .split.cancel', function(e) {
         e.preventDefault();
-        console.log('split');
-        UI.createSplitArea($(this).parents('section'));
-    }).on('keydown', '.splitArea', function(e) {
-        e.preventDefault();
-    }).on('click', '.splitArea', function(e) {
-        if($(this).hasClass('splitpoint')) return false;
-        pasteHtmlAtCaret('<span class="splitpoint"></span>');
-        UI.updateSplitNumber($(this));
-    }).on('click', '.splitArea .splitpoint', function() {
+        console.log('cancel');
+        $('.source .item').removeAttr('style');
+        $('.editor .outersource .actions .split').removeClass('cancel');
         segment = $(this).parents('section');
-        $(this).remove();
-        UI.updateSplitNumber($(segment).find('.splitArea'));
-    }).on('click', '.splitBar .buttons .cancel', function(e) {
+        UI.currentSegment.removeClass('split-action');
+        $('.editor .split-shortcut').html('CTRL + S');
+        segment.find('.splitBar, .splitArea').remove();
+//        segment.find('.sid .actions').hide();
+
+    })*/
+    .on('click', 'body:not([data-offline-mode]) .sid .actions .split', function(e) {
         e.preventDefault();
+        $('.sid .actions .split').addClass('cancel');
+        $('.split-shortcut').html('CTRL + W');
+//        console.log('split');
+        UI.currentSegment.addClass('split-action');
+        actions = $(this).parent().find('.actions');
+        actions.show();
+        UI.createSplitArea($(this).parents('section'));
+
+    }).on('click', 'body[data-offline-mode] .sid .actions .split', function(e) {
+        e.preventDefault();
+    }).on('click', '.sid .actions .split.cancel', function(e) {
+        e.preventDefault();
+        $('.sid .actions .split').removeClass('cancel');
+        source = $(segment).find('.source');
+        $(source).removeAttr('style');
+        UI.currentSegment.removeClass('split-action');
+        $('.split-shortcut').html('CTRL + S');
+        console.log('cancel');
         segment = $(this).parents('section');
         segment.find('.splitBar, .splitArea').remove();
         segment.find('.sid .actions').hide();
-    }).on('click', '.splitBar .buttons .done', function(e) {
+    }).on('keydown', '.splitArea', function(e) {
+        console.log('keydown');
+        e.preventDefault();
+    }).on('keypress', '.splitArea', function(e) {
+        console.log('keypress');
+        e.preventDefault();
+    }).on('keyup', '.splitArea', function(e) {
+        console.log('keyup');
+        e.preventDefault();
+    }).on('click', '.splitArea', function(e) {
+        e.preventDefault();
+        if(window.getSelection().type == 'Range') return false;
+        if($(this).hasClass('splitpoint')) return false;
+        pasteHtmlAtCaret('<span class="splitpoint"><span class="splitpoint-delete"></span></span>');
+        UI.cleanSplitPoints($(this));
+        UI.updateSplitNumber($(this));
+        $(this).blur();
+    }).on('mousedown', '.splitArea .splitpoint', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        segment = $(this).parents('section');
+        $(this).remove();
+        UI.updateSplitNumber($(segment).find('.splitArea'));
+
+        /*
+                console.log('cliccato');
+                segment = $(this).parents('section');
+                console.log('a');
+                console.log('prima: ', $('.splitArea').html());
+                $(this).addClass('vediamo');
+                $(this).remove();
+                console.log('dopo: ', $('.splitArea').html());
+                console.log('b');
+                UI.updateSplitNumber($(segment).find('.splitArea'));
+                console.log('c');
+        
+    }).on('click', '.splitBar .buttons .cancel', function(e) {
+        e.preventDefault();
+        segment = $(this).parents('section');
+        UI.currentSegment.removeClass('split-action');
+        $('.split-shortcut').html('CTRL + S');
+        segment.find('.splitBar, .splitArea').remove();
+        segment.find('.sid .actions').hide();
+   */}).on('click', '.splitBar .buttons .done', function(e) {
         segment = $(this).parents('section');
         e.preventDefault();
         UI.splitSegment(segment);
+
+        /*
+                alreadySplitted = segment.attr('data-split-group') != '';
+                if(alreadySplitted) {
+
+                } else {
+                    UI.splitSegment(segment);
+                }
+        */
+    })
+
+    $("html").bind('keydown', 'ctrl+s', function(e) {
+        e.preventDefault();
+        UI.currentSegment.find('.sid .actions .split').click();
+    }).bind('keydown', 'ctrl+w', function(e) {
+        e.preventDefault();
+        UI.currentSegment.find('.sid .actions .split').click();
     })
 
     $.extend(UI, {
         splitSegment: function (segment) {
-            splittedSource = segment.find('.splitArea').html().split('<span class="splitpoint"></span>');
-            numSplit = splittedSource.length;
-            console.log('numSplit: ', numSplit);
-
+            ss = this.cleanSplittedSource(segment.find('.splitArea').html());
+            splittedSource = ss.split('<span class="splitpoint"><span class="splitpoint-delete"></span></span>');
+            segment.find('.splitBar .buttons .cancel').click();
+//            segment.find('.source').removeAttr('style');
+            oldSid = segment.attr('id').split('-')[1];
+            this.setSegmentSplit(oldSid, splittedSource);
         },
-        createSplitArea: function (segment) {
-            source = $(segment).find('.source');
-            source.after('<div class="splitBar"><div class="splitNum"><span class="num">1</span> segment<span class="plural"></span></div><div class="buttons"><a class="cancel" href="#">Cancel</a><a href="#" class="done">Done</a></div></div><div class="splitArea" contenteditable="true"></div>');
-//            console.log(segment.find('splitArea'));
+        cleanSplittedSource: function (str) {
+            str = str.replace(/<span contenteditable=\"false\" class=\"locked(.*?)\"\>(.*?)<\/span\>/gi, "$2");
+//            console.log('aaaaa: ', str.replace(/<span class=\"currentSplittedSegment\">(.*?)<\/span>/gi, '$1'));
+            str = str.replace(/<span class=\"currentSplittedSegment\">(.*?)<\/span>/gi, '$1');
+            return str;
+        },
 
-            segment.find('.splitArea').html(source.attr('data-original'));
+        setSegmentSplit: function (sid, splittedSource) {
+            splitAr = [0];
+            splitIndex = 0;
+//            console.log('splittedSource: ', splittedSource);
+            $.each(splittedSource, function (index) {
+//                console.log(UI.removeLockTagsFromString(this));
+//                console.log('prima: ', splittedSource[index]);
+                cc = UI.cleanSplittedSource(splittedSource[index]);
+//                console.log('cc: ', cc);
+//                cc = splittedSource[index].replace(/<span contenteditable=\"false\" class=\"locked(.*?)\"\>(.*?)<\/span\>/gi, "$2");
+
+                //SERVER NEEDS TEXT LENGTH COUNT ( WE MUST PAY ATTENTION TO THE TAGS ), so get html content as text
+                //and perform the count
+                ll = $('<div>').html(cc).text().length;
+
+                //WARNING for the length count, must be done BEFORE encoding of quotes '"' to &quot;
+                cc = cc.replace(/"/gi, '&quot;');
+
+//                console.log('dopo: ', cc);
+                splitIndex += ll;
+                splitAr.push( splitIndex );
+            });
+            splitAr.pop();
+            onlyOne = (splittedSource.length == 1)? true : false;
+            splitArString = (splitAr.toString() == '0')? '' : splitAr.toString();
+
+            // new version
+            totalSource = '';
+            $.each( splittedSource, function ( index ) {
+                totalSource += $( document.createElement( 'div' ) ).html( splittedSource[index] ).text();
+                if ( index < (splittedSource.length - 1) ) totalSource += UI.splittedTranslationPlaceholder;
+            } );
+
+            APP.doRequest({
+                data: {
+                    action:              "setSegmentSplit",
+//                    split_points_source: '[' + splitArString + ']',
+                    segment:            totalSource,
+                    id_segment:          sid,
+                    id_job:              config.job_id,
+                    password:            config.password
+                },
+                context: {
+                    splittedSource: splittedSource,
+                    sid: sid,
+                    splitAr: splitAr
+                },
+                error: function(d){
+                    // temp
+                    UI.setSegmentSplitSuccess(this);
+                    console.log('error');
+                },
+                success: function(d){
+                    UI.setSegmentSplitSuccess(this);
+                    console.log('success');
+                    if(d.data == 'OK') {
+
+                    }
+                }
+            });
+        },
+        setSegmentSplitSuccess: function (data) {
+            oldSid = data.sid;
+            console.log('oldSid: ', oldSid);
+            splittedSource = data.splittedSource;
+            console.log('splittedSource: ', splittedSource);
+//            console.log('setSegmentSplitSuccess - splittedSource: ', splittedSource);
+            splitAr = data.splitAr;
+            newSegments = [];
+            splitGroup = [];
+            onlyOne = ( splittedSource.length == 1 ) ? true : false;
+//            console.log('segmentxx: ', UI.editarea.html());
+
+            //get all chunk translations, if this is a merge we want all concatenated targets
+            //but we could reload the page? ( TODO, check if we can avoid spaces and special chars problem )
+            translation = '';
+            if( onlyOne ) {
+                $( 'div[id*=segment-' + oldSid + ']' ).filter(function() {
+                    return this.id.match(/-editarea/);
+                } ).each( function( index, value ){
+                    translation += $( value ).html();
+                    //console.log( $( value ).html() );
+                } );
+            }
+
+            $.each( splittedSource, function ( index ) {
+
+                if( !onlyOne ) {
+                    //there is a split, there are more than one source
+                    translation = ( index == 0 ) ? UI.editarea.html() : '';
+                }
+
+                segData = {
+                    autopropagated_from: "0",
+                    has_reference: "false",
+                    parsed_time_to_edit: ["00", "00", "00", "00"],
+                    readonly: "false",
+                    segment: this.toString(),
+                    segment_hash: segment.attr('data-hash'),
+                    sid: (onlyOne)? oldSid : oldSid + '-' + (index + 1),
+                    split_points_source: [],
+                    status: "DRAFT",
+                    time_to_edit: "0",
+                    translation: translation,
+                    version: segment.attr('data-version'),
+                    warning: "0"
+                }
+                newSegments.push(segData);
+                splitGroup.push(oldSid + '-' + (index + 1));
+            });
+//            console.log('newSegments: ', newSegments);
+            oldSegment = $('#segment-' + oldSid);
+            alreadySplitted = (oldSegment.length)? false : true;
+            if(onlyOne) splitGroup = [];
+//            console.log('alreadySplitted: ', alreadySplitted);
+            $('.test-invisible').remove();
+
+            if(alreadySplitted) {
+                prevSeg = $('#segment-' + oldSid + '-1').prev('section');
+
+                if(prevSeg.length) {
+                    $('section[data-split-original-id=' + oldSid + ']').remove();
+                    $(prevSeg).after(UI.renderSegments(newSegments, true, splitAr, splitGroup));
+                } else {
+                    file = $('#segment-' + oldSid + '-1').parents('article');
+                    $('section[data-split-original-id=' + oldSid + ']').remove();
+                    $(file).prepend(UI.renderSegments(newSegments, true, splitAr, splitGroup));
+                }
+                if(splitGroup.length) {
+                    $.each(splitGroup, function (index) {
+                        UI.lockTags($('#segment-' + this + ' .source'));
+                    });
+                    this.gotoSegment(oldSid + '-1');
+                } else {
+                    UI.lockTags($('#segment-' + oldSid + ' .source'));
+                    this.gotoSegment(oldSid);
+
+                }
+            } else {
+                $(oldSegment).after(UI.renderSegments(newSegments, true, splitAr, splitGroup));
+                $.each(splitGroup, function (index) {
+                    UI.lockTags($('#segment-' + this + ' .source'));
+                });
+                $(oldSegment).remove();
+                this.gotoSegment(oldSid + '-1');
+            }
+
+//            console.log('or ID: ', UI.currentSegment.attr('data-split-original-id'));
+//            console.log('oldSegment: ', oldSegment);
+//            $("section[data-split-original-id=" + UI.currentSegment.attr('data-split-original-id') + "]").remove();
+        },
+
+        createSplitArea: function (segment) {
+            isSplitted = segment.attr('data-split-group') != '';
+            source = $(segment).find('.source');
+            $(source).removeAttr('style');
+            targetHeight = $('.targetarea').height();
+            segment.find('.splitContainer').remove();
+            source.after('<div class="splitContainer"><div class="splitArea" contenteditable="true"></div><div class="splitBar"><div class="buttons"><a class="cancel hide" href="#">Cancel</a><a href="#" class="done btn-ok pull-right">Confirm</a></div><div class="splitNum pull-right">Split in <span class="num">1</span> segment<span class="plural"></span></div></div></div>');
+            splitArea = segment.find('.splitArea');
+            setTimeout(function() {
+                sourceHeight = $(source).height();
+                splitAreaHeight = $(splitArea).height();
+//                console.log(sourceHeight + ' - ' + splitAreaHeight);
+//                console.log('css height del source: ', $(source).css('height'));
+            if(sourceHeight >= splitAreaHeight) {
+                    $('.splitBar').css('top', (sourceHeight + 70)+ 'px');
+                    $(source).css('height', (sourceHeight)+ 'px');
+                    $('.editor .wrap').css('padding-bottom', (splitAreaHeight - targetHeight)+ 'px');
+//                    console.log('caso 1');
+            } else if(sourceHeight < splitAreaHeight) {
+                    $(source).css('height', (splitAreaHeight + 100)+ 'px');
+                    $('.splitBar').css('top', (splitAreaHeight + 70)+ 'px');
+//                    console.log('caso 2');
+                }
+            },100);
+
+           /* setTimeout(function() {
+                sourceHeight = $(source).height();
+                splitAreaHeight = $(splitArea).height();
+                console.log(sourceHeight + ' - ' + splitAreaHeight);
+                console.log('css height del source: ', $(source).css('height'));
+                if(sourceHeight > splitAreaHeight) {
+                    $(splitArea).css('height', (splitAreaHeight + 100) +'px');
+                    $('.splitBar').css('top', (splitAreaHeight + 50)+ 'px');
+                    console.log('caso 1');
+                } else if(sourceHeight <= splitAreaHeight){
+                    $(source).css('height', (sourceHeight + 50)+ 'px');
+                    $('.splitBar').css('top', (sourceHeight + 50)+ 'px');
+                      console.log('caso 2');
+                }
+            },100);*/
+
+            if(isSplitted) splitArea.removeAttr('style');
+            if(isSplitted) {
+//                console.log('ecco: ', '');
+                segments = segment.attr('data-split-group').split(',');
+                totalMarkup = '';
+                $.each(segments, function (index) {
+//                    console.log(this + ' - ' + UI.currentSegmentId);
+                    newMarkup = $('#segment-' + this + ' .source').attr('data-original');
+                    if(this == UI.currentSegmentId) newMarkup = '<span class="currentSplittedSegment">' + newMarkup + '</span>';
+                    totalMarkup += newMarkup;
+
+                    if(index != segments.length - 1) totalMarkup += '<span class="splitpoint"><span class="splitpoint-delete"></span></span>';
+                });
+                splitAreaMarkup = totalMarkup;
+            } else {
+                splitAreaMarkup = source.attr('data-original');
+            }
+            splitArea.html(splitAreaMarkup);
+            this.lockTags(splitArea);
+            splitArea.find('.rangySelectionBoundary').remove();
         },
         updateSplitNumber: function (area) {
             segment = $(area).parents('section');
@@ -10712,6 +11704,10 @@ if(config.splitSegmentEnabled) {
                 splitnum.hide();
             }
         },
+        cleanSplitPoints: function (splitArea) {
+            splitArea.html(splitArea.html().replace(/(<span class="splitpoint"><span class="splitpoint-delete"><\/span><\/span>)<span class="splitpoint"><span class="splitpoint-delete"><\/span><\/span>/gi, '$1'));
+            splitArea.html(splitArea.html().replace(/(<span class="splitpoint"><span class="splitpoint-delete"><\/span><\/span>)$/gi, ''));
+        }
 
     })
 }
